@@ -1,0 +1,49 @@
+# Python虚拟环境
+.venv/
+venv/
+env/
+
+# Python编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 临时文件
+*.tmp
+*.temp
+/temp/
+.cache/
+
+# 配置文件
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 测试文件
+.pytest_cache/
+.coverage
+coverage.xml
+
+# 构建文件
+dist/
+build/
+*.egg-info/
+
+# API密钥文件
+config.py
