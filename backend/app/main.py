@@ -3,16 +3,23 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import uuid
 import os
+import sys
 from pathlib import Path
 import pdfplumber
 from docx import Document
 import shutil
-import dashscope
-from dashscope import Generation
-from config import DASHSCOPE_API_KEY, MODEL_NAME, MAX_TOKENS
+from openai import OpenAI
 
-# 配置通义千问API密钥
-dashscope.api_key = DASHSCOPE_API_KEY
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from backend.config.config import SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL, MODEL_NAME, MAX_TOKENS, temperature
+
+# 配置硅基流动API
+client = OpenAI(
+    api_key=SILICONFLOW_API_KEY,
+    base_url=SILICONFLOW_BASE_URL,
+)
 
 app = FastAPI(
     title="智能面试辅助平台 API",
@@ -49,10 +56,19 @@ async def upload_resume(file: UploadFile = File(...)):
     
     # 解析简历内容
     resume_text = ""
-    if file_extension == "pdf":
-        resume_text = parse_pdf(str(file_path))
-    elif file_extension == "docx":
-        resume_text = parse_docx(str(file_path))
+    try:
+        if file_extension == "pdf":
+            resume_text = parse_pdf(str(file_path))
+        elif file_extension == "docx":
+            resume_text = parse_docx(str(file_path))
+        
+        if not resume_text:
+            raise HTTPException(status_code=400, detail=f"无法解析{file_extension.upper()}文件内容，请确保文件有效且包含文本")
+    except Exception as e:
+        # 清理无效文件
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=400, detail=f"解析文件失败: {str(e)}")
     
     # 保存简历信息
     resumes[resume_id] = {
@@ -89,8 +105,17 @@ def parse_docx(file_path: str) -> str:
     return text
 
 def analyze_resume_with_ai(resume_text: str) -> dict:
-    """使用通义千问API分析简历内容"""
+    """使用硅基流动API分析简历内容"""
+    # 检查API密钥是否为默认值
+    if SILICONFLOW_API_KEY == "your-api-key-here":
+        return {
+            "success": False,
+            "analysis": "",
+            "message": "AI分析失败：请先在backend/config/config.py中配置有效的SILICONFLOW_API_KEY"
+        }
+    
     try:
+        print(f"[DEBUG] 开始AI分析，使用模型: {MODEL_NAME}")
         # 构建分析prompt
         prompt = f"""请作为专业的简历分析师，分析以下简历内容，并提供详细的分析报告：
 
@@ -105,32 +130,60 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
 
 请用中文回复，语言简洁专业，重点突出。"""
         
-        # 调用通义千问API
-        response = Generation.call(
+        # 调用硅基流动API
+        print(f"[DEBUG] 调用硅基流动API，prompt长度: {len(prompt)}")
+        response = client.chat.completions.create(
             model=MODEL_NAME,
-            prompt=prompt,
+            messages=[
+                {"role": "system", "content": "你是一位专业的简历分析师。"},
+                {"role": "user", "content": prompt}
+            ],
             max_tokens=MAX_TOKENS,
-            temperature=0.7
+            temperature=temperature
         )
         
-        if response.status_code == 200 and response.output and response.output.text:
+        print(f"[DEBUG] API响应: {response}")
+        if response.choices and response.choices[0].message.content:
             return {
                 "success": True,
-                "analysis": response.output.text,
+                "analysis": response.choices[0].message.content,
                 "message": "AI分析完成"
             }
         else:
             return {
                 "success": False,
                 "analysis": "",
-                "message": f"AI分析失败：{response.message}"
+                "message": "AI分析失败：未获取到有效响应内容"
             }
     except Exception as e:
-        return {
-            "success": False,
-            "analysis": "",
-            "message": f"AI分析过程中出现错误：{str(e)}"
-        }
+        error_msg = str(e)
+        print(f"[ERROR] AI分析出错: {error_msg}")
+        
+        # 提供更友好的错误信息
+        if "401" in error_msg or "Invalid token" in error_msg:
+            return {
+                "success": False,
+                "analysis": "",
+                "message": "AI分析失败：API密钥无效，请检查backend/config/config.py中的SILICONFLOW_API_KEY配置"
+            }
+        elif "403" in error_msg:
+            return {
+                "success": False,
+                "analysis": "",
+                "message": "AI分析失败：API访问被拒绝，请检查API密钥的权限设置"
+            }
+        elif "429" in error_msg:
+            return {
+                "success": False,
+                "analysis": "",
+                "message": "AI分析失败：API请求频率过高，请稍后再试"
+            }
+        else:
+            return {
+                "success": False,
+                "analysis": "",
+                "message": f"AI分析过程中出现错误：{error_msg}"
+            }
 
 @app.post("/api/v1/resume/analyze")
 async def analyze_resume(resume_id: str):

@@ -47,3 +47,5 @@ build/
 
 # API密钥文件
 config.py
+uploads/
+temp/
