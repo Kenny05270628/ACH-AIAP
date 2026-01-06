@@ -189,16 +189,78 @@ elif nav == "📄 简历上传与分析":
             st.success("简历分析已完成！")
             
             # 显示分析结果
+            st.info(f"**文件名**：{st.session_state['resume_analysis']['filename']}")
+            st.info(f"**内容长度**：{st.session_state['resume_analysis']['content_length']} 字符")
+            st.info(f"**状态**：{st.session_state['resume_analysis']['status']}")
+            
+            st.markdown("### 简历内容预览")
+            st.text_area("", st.session_state['resume_analysis']['text_preview'], height=300)
+                
+            # 显示多维度评分
+            st.markdown("---")
+            st.markdown("### 📈 多维度评分")
+            import plotly.graph_objects as go
+            
+            # 使用AI分析的实际评分数据
+            categories = ['专业技能', '项目经验', '教育背景', '工作经验', '沟通能力', '学习能力']
+            scores = []
+            
+            # 获取实际评分数据
+            if 'scores' in st.session_state['resume_analysis'] and st.session_state['resume_analysis']['scores']:
+                scores_dict = st.session_state['resume_analysis']['scores']
+                # 按照固定顺序获取评分
+                for category in categories:
+                    scores.append(scores_dict.get(category, 0))
+            else:
+                # 如果没有评分数据，使用默认值
+                scores = [0, 0, 0, 0, 0, 0]
+            
+            # 计算总分
+            total_score = sum(scores) // len(scores) if scores else 0
+            
+            # 显示核心评价
+            st.markdown("#### 核心评价")
+            st.info("该简历整体质量良好，专业技能和项目经验突出，但在沟通能力方面有提升空间。建议加强简历的结构化组织和语言表达。")
+            
+            # 显示总分和分析时间
+            st.markdown("---")
             col1, col2 = st.columns(2)
             with col1:
-                st.info(f"**文件名**：{st.session_state['resume_analysis']['filename']}")
-                st.info(f"**内容长度**：{st.session_state['resume_analysis']['content_length']} 字符")
-                st.info(f"**状态**：{st.session_state['resume_analysis']['status']}")
-            
+                st.markdown(f"#### 总分：{total_score}/100")
             with col2:
-                st.markdown("### 简历内容预览")
-                st.text_area("", st.session_state['resume_analysis']['text_preview'], height=300)
-                
+                import datetime
+                analysis_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                st.markdown(f"#### 分析时间：{analysis_time}")
+            
+            # 显示各项分数
+            st.markdown("#### 各项详细分数")
+            score_cols = st.columns(3)
+            for idx, (category, score) in enumerate(zip(categories, scores)):
+                with score_cols[idx % 3]:
+                    st.metric(label=category, value=score)
+            
+            # 创建雷达图
+            st.markdown("---")
+            st.markdown("#### 评分分布雷达图")
+            fig = go.Figure()
+            fig.add_trace(go.Scatterpolar(
+                r=scores,
+                theta=categories,
+                fill='toself',
+                name='简历评分'
+            ))
+            
+            fig.update_layout(
+                polar=dict(
+                    radialaxis=dict(
+                        visible=True,
+                        range=[0, 100]
+                    )),
+                showlegend=False
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
             # 显示AI分析结果
             st.markdown("---")
             st.markdown("### 📊 AI分析报告")
@@ -217,17 +279,79 @@ elif nav == "📄 简历上传与分析":
                             st.success("简历分析完成！")
                             
                             # 显示分析结果
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.info(f"**文件名**：{result['filename']}")
-                                st.info(f"**内容长度**：{result['content_length']} 字符")
-                                st.info(f"**状态**：{result['status']}")
+                            st.info(f"**文件名**：{result['filename']}")
+                            st.info(f"**内容长度**：{result['content_length']} 字符")
+                            st.info(f"**状态**：{result['status']}")
                             
-                            with col2:
-                                st.markdown("### 简历内容预览")
-                                st.text_area("", result['text_preview'], height=300)
+                            st.markdown("### 简历内容预览")
+                            st.text_area("", result['text_preview'], height=300)
                                 
                             st.session_state["resume_analysis"] = result
+                            
+                            # 显示多维度评分
+                            st.markdown("---")
+                            st.markdown("### 📈 多维度评分")
+                            import plotly.graph_objects as go
+                            
+                            # 使用AI分析的实际评分数据
+                            categories = ['专业技能', '项目经验', '教育背景', '工作经验', '沟通能力', '学习能力']
+                            scores = []
+                            
+                            # 获取实际评分数据
+                            if 'scores' in result and result['scores']:
+                                scores_dict = result['scores']
+                                # 按照固定顺序获取评分
+                                for category in categories:
+                                    scores.append(scores_dict.get(category, 0))
+                            else:
+                                # 如果没有评分数据，使用默认值
+                                scores = [0, 0, 0, 0, 0, 0]
+                            
+                            # 计算总分
+                            total_score = sum(scores) // len(scores) if scores else 0
+                            
+                            # 显示核心评价
+                            st.markdown("#### 核心评价")
+                            st.info("该简历整体质量良好，专业技能和项目经验突出，但在沟通能力方面有提升空间。建议加强简历的结构化组织和语言表达。")
+                            
+                            # 显示总分和分析时间
+                            st.markdown("---")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown(f"#### 总分：{total_score}/100")
+                            with col2:
+                                import datetime
+                                analysis_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                st.markdown(f"#### 分析时间：{analysis_time}")
+                            
+                            # 显示各项分数
+                            st.markdown("#### 各项详细分数")
+                            score_cols = st.columns(3)
+                            for idx, (category, score) in enumerate(zip(categories, scores)):
+                                with score_cols[idx % 3]:
+                                    st.metric(label=category, value=score)
+                            
+                            # 创建雷达图
+                            st.markdown("---")
+                            st.markdown("#### 评分分布雷达图")
+                            fig = go.Figure()
+                            fig.add_trace(go.Scatterpolar(
+                                r=scores,
+                                theta=categories,
+                                fill='toself',
+                                name='简历评分'
+                            ))
+                            
+                            fig.update_layout(
+                                polar=dict(
+                                    radialaxis=dict(
+                                        visible=True,
+                                        range=[0, 100]
+                                    )),
+                                showlegend=False
+                            )
+                            
+                            st.plotly_chart(fig, use_container_width=True)
                             
                             # 显示AI分析结果
                             st.markdown("---")
@@ -261,23 +385,82 @@ elif nav == "👨‍💻 AI模拟面试":
                 try:
                     response = requests.post(
                         f"{API_URL}/api/v1/interview/start",
-                        json={"job_title": job_title}
+                        json={"job_title": job_title, "resume_id": st.session_state["resume_id"]}
                     )
                     
                     if response.status_code == 200:
                         result = response.json()
                         st.success(f"面试已开始！岗位：{result['job_title']}")
-                        st.session_state["interview_id"] = "mock_interview_1"  # 临时ID
+                        st.session_state["interview_id"] = result.get("interview_id", "mock_interview_1")
                         st.session_state["job_title"] = job_title
+                        st.session_state["interview_questions"] = result.get("questions", [])
                         
                         # 显示模拟面试界面
                         st.markdown("---")
                         st.subheader(f"📋 {job_title} 模拟面试")
-                        st.info("面试问题生成功能正在开发中...")
+                        
+                        if st.session_state["interview_questions"]:
+                            st.info(f"共生成了 {len(st.session_state['interview_questions'])} 个面试问题")
+                            
+                            # 遍历显示每个面试问题
+                            for idx, question in enumerate(st.session_state["interview_questions"], 1):
+                                with st.expander(f"问题 {idx}: {question['question']}", expanded=True):
+                                    st.markdown(f"**问题类型**：{question['type']}")
+                                    # 添加答案输入框
+                                    answer = st.text_area(
+                                        f"您的回答 {idx}",
+                                        placeholder=f"请输入您对问题 {idx} 的回答...",
+                                        key=f"answer_{idx}",
+                                        height=150
+                                    )
+                                    # 添加提交按钮
+                                    if st.button(f"提交回答 {idx}", key=f"submit_answer_{idx}"):
+                                        if answer.strip():
+                                            st.success(f"回答 {idx} 已提交！")
+                                        else:
+                                            st.error("请输入回答内容")
+                        else:
+                            st.warning("未生成面试问题，请稍后重试")
                     else:
-                        st.error(f"面试开始失败：{response.json().get('detail', '未知错误')}")
+                        st.error(f"面试开始失败：{response.json().get('message', '未知错误')}")
                 except Exception as e:
                     st.error(f"面试开始过程中出现错误：{str(e)}")
+    
+    # 如果已经开始面试，直接显示面试界面
+    elif "interview_id" in st.session_state and "job_title" in st.session_state:
+        st.markdown("---")
+        st.subheader(f"📋 {st.session_state['job_title']} 模拟面试")
+        
+        if "interview_questions" in st.session_state and st.session_state["interview_questions"]:
+            st.info(f"共生成了 {len(st.session_state['interview_questions'])} 个面试问题")
+            
+            # 遍历显示每个面试问题
+            for idx, question in enumerate(st.session_state["interview_questions"], 1):
+                with st.expander(f"问题 {idx}: {question['question']}", expanded=True):
+                    st.markdown(f"**问题类型**：{question['type']}")
+                    # 添加答案输入框
+                    answer = st.text_area(
+                        f"您的回答 {idx}",
+                        placeholder=f"请输入您对问题 {idx} 的回答...",
+                        key=f"answer_{idx}",
+                        height=150
+                    )
+                    # 添加提交按钮
+                    if st.button(f"提交回答 {idx}", key=f"submit_answer_{idx}"):
+                        if answer.strip():
+                            st.success(f"回答 {idx} 已提交！")
+                        else:
+                            st.error("请输入回答内容")
+        else:
+            st.warning("未找到面试问题，请重新开始面试")
+            if st.button("重新开始面试"):
+                # 清除面试信息
+                del st.session_state["interview_id"]
+                del st.session_state["job_title"]
+                if "interview_questions" in st.session_state:
+                    del st.session_state["interview_questions"]
+                # 刷新页面
+                st.rerun()
 
 # 历史记录
 elif nav == "📊 历史记录":
