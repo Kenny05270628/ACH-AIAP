@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import uuid
 import os
@@ -32,6 +33,15 @@ app = FastAPI(
     title="智能面试辅助平台 API",
     description="提供简历分析和AI模拟面试功能",
     version="0.1.0"
+)
+
+# 配置CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # 允许React应用的源
+    allow_credentials=True,
+    allow_methods=["*"],  # 允许所有HTTP方法
+    allow_headers=["*"],  # 允许所有HTTP头
 )
 
 # 确保临时目录存在
@@ -175,6 +185,39 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
         print(f"[DEBUG] API响应: {response}")
         if response.choices and response.choices[0].message.content:
             ai_content = response.choices[0].message.content
+            print(f"[DEBUG] AI返回的原始内容: '{ai_content}'")
+            print(f"[DEBUG] 内容长度: {len(ai_content)}")
+            print(f"[DEBUG] 内容类型: {type(ai_content)}")
+            print(f"[DEBUG] 内容前100字符: '{ai_content[:100]}'")
+            
+            # 清除可能的BOM或不可见字符
+            ai_content = ai_content.strip()
+            if not ai_content:
+                print("[ERROR] AI返回的内容为空")
+                return {
+                    "success": False,
+                    "analysis": "",
+                    "scores": {},
+                    "message": "AI分析失败：返回内容为空"
+                }
+            
+            # 检查内容是否以JSON开头
+            if not (ai_content.startswith('{') or ai_content.startswith('[')):
+                print(f"[ERROR] AI返回的内容不是有效的JSON开头: '{ai_content[:20]}...'")
+                # 尝试提取JSON部分（可能AI返回了额外的文本）
+                import re
+                json_match = re.search(r'\{.*\}|\[.*\]', ai_content, re.DOTALL)
+                if json_match:
+                    ai_content = json_match.group(0)
+                    print(f"[DEBUG] 提取到的JSON部分: '{ai_content}'")
+                else:
+                    return {
+                        "success": False,
+                        "analysis": "",
+                        "scores": {},
+                        "message": f"AI分析失败：返回内容不是有效的JSON格式，原始响应：{ai_content}"
+                    }
+            
             try:
                 # 解析JSON格式的响应
                 result = json.loads(ai_content)
@@ -297,6 +340,37 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
         if response.choices and response.choices[0].message.content:
             # 解析返回的JSON格式问题
             questions_content = response.choices[0].message.content
+            print(f"[DEBUG] 面试问题AI返回的原始内容: '{questions_content}'")
+            print(f"[DEBUG] 内容长度: {len(questions_content)}")
+            print(f"[DEBUG] 内容类型: {type(questions_content)}")
+            print(f"[DEBUG] 内容前100字符: '{questions_content[:100]}'")
+            
+            # 清除可能的BOM或不可见字符
+            questions_content = questions_content.strip()
+            if not questions_content:
+                print("[ERROR] 面试问题AI返回的内容为空")
+                return {
+                    "success": False,
+                    "questions": [],
+                    "message": "面试问题生成失败：返回内容为空"
+                }
+            
+            # 检查内容是否以JSON开头
+            if not (questions_content.startswith('{') or questions_content.startswith('[')):
+                print(f"[ERROR] 面试问题AI返回的内容不是有效的JSON开头: '{questions_content[:20]}...'")
+                # 尝试提取JSON部分（可能AI返回了额外的文本）
+                import re
+                json_match = re.search(r'\{.*\}|\[.*\]', questions_content, re.DOTALL)
+                if json_match:
+                    questions_content = json_match.group(0)
+                    print(f"[DEBUG] 提取到的JSON部分: '{questions_content}'")
+                else:
+                    return {
+                        "success": False,
+                        "questions": [],
+                        "message": f"面试问题生成失败：返回内容不是有效的JSON格式，原始响应：{questions_content}"
+                    }
+            
             try:
                 questions = json.loads(questions_content)
                 return {
