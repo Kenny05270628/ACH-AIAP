@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACH 智能面试辅助平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 
+                            400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 
+                            800: '#075985', 900: '#0c4a6e',
+                        },
+                        secondary: {
+                            50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 
+                            400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 
+                            800: '#5b21b6', 900: '#4c1d95',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans SC', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Noto Sans SC', sans-serif; }
+        .glass {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+        
+        /* 替代 400.jpg 的 AI 动效 */
+        @keyframes pulse-slow {
+            0%, 100% { transform: scale(1); opacity: 0.2; }
+            50% { transform: scale(1.15); opacity: 0.4; }
+        }
+        @keyframes wave {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .animate-pulse-slow { animation: pulse-slow 4s ease-in-out infinite; }
+        .animate-wave-slow { animation: wave 12s linear infinite; }
+        .animate-wave-fast { animation: wave 7s linear infinite; }
+
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* ==================== 核心：侧边栏真正变窄与文字精准隐藏 ==================== */
+        #sidebar.collapsed {
+            width: 72px !important;
+        }
+        /* 隐藏侧边栏收缩后所有不需要的文本、辅助标题 */
+        #sidebar.collapsed .nav-text,
+        #sidebar.collapsed .menu-category-title,
+        #sidebar.collapsed .user-info-text {
+            display: none !important;
+        }
+        /* 调整收缩后导航项的内边距，使其完美居中 */
+        #sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding-left: 0;
+            padding-right: 0;
+        }
+        #sidebar.collapsed .nav-item i {
+            margin-right: 0 !important;
+        }
+        /* 调整收缩后Logo区域的排版 */
+        #sidebar.collapsed .logo-container {
+            justify-content: center;
+            padding-left: 0;
+            padding-right: 0;
+        }
+        /* 调整收缩后底部用户区域的排版 */
+        #sidebar.collapsed .user-container {
+            justify-content: center;
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        /* 主内容区域与侧边栏平滑过渡 */
+        #mainContent {
+            transition: margin-left 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-indigo-50/30 to-violet-50 min-h-screen text-slate-800 antialiased overflow-hidden">
+    
+    <div class="flex h-screen relative w-full">
+        
+        <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden md:hidden transition-opacity duration-300 opacity-0"></div>
+
+        <aside id="sidebar" class="fixed top-0 left-0 h-full w-64 bg-white shadow-xl md:shadow-lg z-40 flex flex-col transition-all duration-300 ease-in-out transform -translate-x-full md:translate-x-0">
+            <div class="p-6 border-b border-slate-100 flex items-center justify-between shrink-0 logo-container">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-tr from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
+                        <i class="fas fa-robot text-white text-lg"></i>
+                    </div>
+                    <div class="nav-text">
+                        <h1 class="text-lg font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent tracking-wide">ACH</h1>
+                        <p class="text-xs text-slate-400 font-medium">智能面试辅助平台</p>
+                    </div>
+                </div>
+                <button id="closeSidebar" class="md:hidden text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            
+            <nav class="flex-1 px-4 py-6 overflow-y-auto no-scrollbar space-y-7">
+                <div>
+                    <span class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3 menu-category-title">核心功能</span>
+                    <ul class="space-y-1.5" id="navMenuList">
+                        <li>
+                            <a href="#" data-target="home-panel" class="nav-item flex items-center px-4 py-3 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-md shadow-primary-500/15 font-medium transition-all duration-200">
+                                <i class="fas fa-home w-5 mr-3 text-lg shrink-0"></i>
+                                <span class="nav-text">首页</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-target="resume-panel" class="nav-item flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200">
+                                <i class="fas fa-id-card w-5 mr-3 text-lg text-slate-600 shrink-0"></i>
+                                <span class="nav-text">简历上传与分析</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-target="interview-panel" class="nav-item flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200">
+                                <i class="fas fa-comments-dollar w-5 mr-3 text-lg text-secondary-500 shrink-0"></i>
+                                <span class="nav-text">AI模拟面试</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-target="history-panel" class="nav-item flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200">
+                                <i class="fas fa-clock-rotate-left w-5 mr-3 text-lg text-indigo-500 shrink-0"></i>
+                                <span class="nav-text">历史记录</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="border-t border-slate-100 pt-6">
+                    <span class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3 menu-category-title">快捷操作</span>
+                    <ul class="space-y-1.5">
+                        <li>
+                            <a href="#" class="flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 id-setting-btn nav-item">
+                                <i class="fas fa-sliders w-5 mr-3 text-slate-400 shrink-0"></i>
+                                <span class="nav-text">设置</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" class="flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 id-help-btn nav-item">
+                                <i class="fas fa-circle-question w-5 mr-3 text-slate-400 shrink-0"></i>
+                                <span class="nav-text">帮助中心</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+            
+            <div class="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0 flex items-center justify-between user-container">
+                <div class="flex items-center space-x-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary-400 to-secondary-400 flex items-center justify-center text-white font-semibold shadow-inner shrink-0">
+                        U
+                    </div>
+                    <div class="min-w-0 user-info-text">
+                        <p class="text-sm font-semibold text-slate-800 truncate">极客面试官</p>
+                        <p class="text-xs text-slate-400 truncate">user@example.com</p>
+                    </div>
+                </div>
+                <button class="text-slate-400 hover:text-rose-500 p-1.5 rounded-lg hover:bg-rose-50 transition-colors duration-200 user-info-text" title="退出登录">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+        
+        <button id="toggleSidebar" class="hidden md:flex fixed left-60 top-1/2 -translate-y-1/2 z-50 bg-white border border-slate-200 text-slate-400 hover:text-primary-600 w-5 h-12 rounded-r-xl shadow-md items-center justify-center transition-all duration-300 focus:outline-none hover:w-6">
+            <i class="fas fa-chevron-left text-[10px] transition-transform duration-300" id="toggleIcon"></i>
+        </button>
+        
+        <div id="mainContent" class="flex-1 flex flex-col h-full overflow-y-auto md:ml-64">
+            
+            <header class="bg-white/80 backdrop-blur-md shadow-sm border-b border-slate-100 sticky top-0 z-30 px-6 py-4 flex items-center justify-between shrink-0">
+                <div class="flex items-center space-x-3">
+                    <button id="openSidebar" class="md:hidden text-slate-600 hover:text-primary-600 p-1 text-xl mr-1">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h2 id="currentPanelTitle" class="text-lg font-bold text-slate-800">控制台首页</h2>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button class="relative p-2 text-slate-500 hover:text-primary-600 hover:bg-slate-50 rounded-xl transition-all duration-200">
+                        <i class="fas fa-bell text-lg"></i>
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
+                    </button>
+                    <button class="relative p-2 text-slate-500 hover:text-primary-600 hover:bg-slate-50 rounded-xl transition-all duration-200">
+                        <i class="fas fa-envelope text-lg"></i>
+                        <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white"></span>
+                    </button>
+                </div>
+            </header>
+            
+            <main class="p-6 flex-1 max-w-7xl w-full mx-auto">
+                
+                <div id="home-panel" class="content-panel space-y-8">
+                    <div class="glass rounded-2xl p-6 md:p-8 shadow-xl shadow-slate-100/70 relative overflow-hidden">
+                        <div class="flex flex-col lg:flex-row items-center lg:justify-between gap-8 relative z-10">
+                            
+                            <div class="w-full lg:w-3/5 text-center lg:text-left">
+                                <span class="px-3 py-1 bg-primary-50 text-primary-600 rounded-full text-xs font-semibold tracking-wide inline-block mb-3">AI Powered v2.0</span>
+                                <h1 class="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent mb-4 leading-snug">
+                                    欢迎使用 ACH 智能面试辅助平台
+                                </h1>
+                                <p class="text-slate-500 text-sm md:text-base mb-6 max-w-xl mx-auto lg:mx-0">
+                                    基于大语言模型与岗位画像，为您提供从简历深度诊断到沉浸式模拟面试的一站式求职跃升通途。
+                                </p>
+                                
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+                                    <div class="p-4 bg-white/60 rounded-xl border border-white/40 shadow-sm flex items-center space-x-3">
+                                        <div class="w-9 h-9 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center shrink-0"><i class="fas fa-magnifying-glass-chart"></i></div>
+                                        <div><h4 class="text-sm font-bold text-slate-800">简历分析</h4><p class="text-xs text-slate-400">自动解析改写</p></div>
+                                    </div>
+                                    <div class="p-4 bg-white/60 rounded-xl border border-white/40 shadow-sm flex items-center space-x-3">
+                                        <div class="w-9 h-9 bg-secondary-100 text-secondary-600 rounded-lg flex items-center justify-center shrink-0"><i class="fas fa-headset"></i></div>
+                                        <div><h4 class="text-sm font-bold text-slate-800">模拟面试</h4><p class="text-xs text-slate-400">双向音视频交互</p></div>
+                                    </div>
+                                    <div class="p-4 bg-white/60 rounded-xl border border-white/40 shadow-sm flex items-center space-x-3">
+                                        <div class="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center shrink-0"><i class="fas fa-chart-line"></i></div>
+                                        <div><h4 class="text-sm font-bold text-slate-800">复盘报告</h4><p class="text-xs text-slate-400">多维度量化评分</p></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="w-full lg:w-2/5 flex justify-center">
+                                <div class="relative w-52 h-52 md:w-60 md:h-60 rounded-3xl bg-slate-950 shadow-2xl flex items-center justify-center overflow-hidden border border-slate-800 group">
+                                    <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:1.5rem_1.5rem] opacity-30"></div>
+                                    
+                                    <div class="absolute w-44 h-44 rounded-full bg-primary-500/20 blur-2xl animate-pulse-slow"></div>
+                                    <div class="absolute w-32 h-32 rounded-full bg-secondary-500/10 blur-xl"></div>
+                                    
+                                    <div class="absolute w-40 h-40 rounded-[42%_58%_70%_30%_/_45%_45%_55%_55%] border border-primary-400/30 bg-gradient-to-tr from-primary-500/10 to-transparent animate-wave-slow"></div>
+                                    <div class="absolute w-36 h-36 rounded-[70%_30%_52%_48%_/_60%_40%_60%_40%] border border-secondary-400/20 bg-gradient-to-bl from-secondary-500/5 to-transparent animate-wave-fast"></div>
+                                    
+                                    <div class="relative z-10 flex flex-col items-center space-y-3">
+                                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-900 border border-slate-700/60 flex items-center justify-center text-primary-400 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                                            <i class="fas fa-brain text-2xl text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400"></i>
+                                        </div>
+                                        <div class="flex items-center space-x-1.5">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                            <span class="text-[11px] text-slate-400 font-mono tracking-widest uppercase">AI MODEL READY</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <h3 class="text-base font-bold text-slate-800 tracking-wide">核心工作台</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="group bg-white rounded-2xl p-6 border border-slate-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                                <div>
+                                    <div class="w-12 h-12 bg-primary-50 group-hover:bg-primary-100 rounded-xl flex items-center justify-center mb-4 transition-colors duration-300">
+                                        <i class="fas fa-cloud-arrow-up text-xl text-primary-600"></i>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-800 mb-1.5">解析与优化简历</h3>
+                                    <p class="text-slate-400 text-xs leading-relaxed mb-6">支持 PDF / Word 等主流格式，多模态算法精准提取核心优势并提供话术润色。</p>
+                                </div>
+                                <button onclick="switchPanel('resume-panel')" class="w-full py-2.5 bg-slate-50 group-hover:bg-primary-600 text-slate-600 group-hover:text-white rounded-xl font-medium text-sm transition-all duration-300 shadow-sm shadow-slate-100 group-hover:shadow-primary-500/20">
+                                    立即上传
+                                </button>
+                            </div>
+                            
+                            <div class="group bg-white rounded-2xl p-6 border border-slate-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                                <div>
+                                    <div class="w-12 h-12 bg-secondary-50 group-hover:bg-secondary-100 rounded-xl flex items-center justify-center mb-4 transition-colors duration-300">
+                                        <i class="fas fa-user-astronaut text-xl text-secondary-600"></i>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-800 mb-1.5">AI 沉浸式对练</h3>
+                                    <p class="text-slate-400 text-xs leading-relaxed mb-6">基于目标岗位画像及真实简历定制题目，覆盖技术面、行为面（STAR法则）。</p>
+                                </div>
+                                <button onclick="switchPanel('interview-panel')" class="w-full py-2.5 bg-slate-50 group-hover:bg-secondary-600 text-slate-600 group-hover:text-white rounded-xl font-medium text-sm transition-all duration-300 shadow-sm shadow-slate-100 group-hover:shadow-secondary-500/20">
+                                    开启对练
+                                </button>
+                            </div>
+                            
+                            <div class="group bg-white rounded-2xl p-6 border border-slate-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                                <div>
+                                    <div class="w-12 h-12 bg-indigo-50 group-hover:bg-indigo-100 rounded-xl flex items-center justify-center mb-4 transition-colors duration-300">
+                                        <i class="fas fa-file-invoice-with-usd text-xl text-indigo-600"></i>
+                                    </div>
+                                    <h3 class="text-base font-bold text-slate-800 mb-1.5">诊断复盘报告</h3>
+                                    <p class="text-slate-400 text-xs leading-relaxed mb-6">沉淀历次面试音视频切片及文本，多维度复盘表达缺陷、语义硬伤及知识盲区。</p>
+                                </div>
+                                <button onclick="switchPanel('history-panel')" class="w-full py-2.5 bg-slate-50 group-hover:bg-indigo-600 text-slate-600 group-hover:text-white rounded-xl font-medium text-sm transition-all duration-300 shadow-sm shadow-slate-100 group-hover:shadow-indigo-500/20">
+                                    查看记录
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="resume-panel" class="content-panel hidden space-y-6">
+                    <div class="bg-white border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-12 text-center transition-colors cursor-pointer group">
+                        <i class="fas fa-cloud-arrow-up text-4xl text-slate-300 group-hover:text-primary-500 mb-4 transition-colors"></i>
+                        <h4 class="text-slate-700 font-bold mb-1">将您的简历拖拽到此处上传</h4>
+                        <p class="text-xs text-slate-400 mb-4">支持 PDF, DOCX 格式，大小不超过 10MB</p>
+                        <button class="px-4 py-2 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 transition-colors shadow-md shadow-primary-500/10">选择文件</button>
+                    </div>
+                </div>
+
+                <div id="interview-panel" class="content-panel hidden">
+                    <div class="bg-white border border-slate-100 rounded-2xl p-8 text-center shadow-sm">
+                        <div class="w-16 h-16 bg-secondary-50 text-secondary-600 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-video text-2xl"></i></div>
+                        <h3 class="text-lg font-bold text-slate-800 mb-2">进入AI面试准备房间</h3>
+                        <p class="text-sm text-slate-500 max-w-md mx-auto mb-6">请确保您的摄像头及麦克风设备正常，以便AI能够为您提供全真多维互动评估。</p>
+                        <button class="px-6 py-2.5 bg-secondary-600 text-white rounded-xl font-medium text-sm hover:bg-secondary-700 transition-colors shadow-md shadow-secondary-500/10">检测设备并进入</button>
+                    </div>
+                </div>
+
+                <div id="history-panel" class="content-panel hidden">
+                    <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50"><h3 class="font-bold text-slate-800 text-sm">历次模拟对练明细</h3></div>
+                        <div class="p-8 text-center text-slate-400 text-sm"><i class="fas fa-folder-open text-3xl mb-3 block text-slate-300"></i>暂无历史面试复盘数据</div>
+                    </div>
+                </div>
+                
+            </main>
+            
+            <footer class="p-6 text-center text-slate-400 text-xs border-t border-slate-100/60 bg-white/40 shrink-0">
+                <p>© 2026 ACH 智能面试辅助平台 - 助您面试成功</p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('mainContent');
+        const toggleSidebarBtn = document.getElementById('toggleSidebar');
+        const toggleIcon = document.getElementById('toggleIcon');
+        
+        const openSidebarBtn = document.getElementById('openSidebar');
+        const closeSidebarBtn = document.getElementById('closeSidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        
+        const navItems = document.querySelectorAll('.nav-item');
+        const panels = document.querySelectorAll('.content-panel');
+        const currentPanelTitle = document.getElementById('currentPanelTitle');
+
+        let isCollapsed = false;
+
+        function switchPanel(targetPanelId) {
+            panels.forEach(panel => {
+                if(panel.id === targetPanelId) {
+                    panel.classList.remove('hidden');
+                } else {
+                    panel.classList.add('hidden');
+                }
+            });
+
+            navItems.forEach(nav => {
+                const isCurrent = nav.getAttribute('data-target') === targetPanelId;
+                if(isCurrent) {
+                    nav.classList.add('bg-gradient-to-r', 'from-primary-500', 'to-primary-600', 'text-white', 'shadow-md', 'shadow-primary-500/15', 'font-medium');
+                    nav.classList.remove('text-slate-600', 'hover:bg-slate-50', 'hover:text-slate-900');
+                    
+                    const spanEl = nav.querySelector('.nav-text');
+                    if (spanEl) {
+                        currentPanelTitle.innerText = spanEl.innerText;
+                    }
+                } else {
+                    nav.classList.remove('bg-gradient-to-r', 'from-primary-500', 'to-primary-600', 'text-white', 'shadow-md', 'shadow-primary-500/15', 'font-medium');
+                    nav.classList.add('text-slate-600', 'hover:bg-slate-50', 'hover:text-slate-900');
+                }
+            });
+            
+            if (window.innerWidth < 768) {
+                toggleMobileSidebar(false);
+            }
+        }
+
+        toggleSidebarBtn.addEventListener('click', () => {
+            isCollapsed = !isCollapsed;
+            
+            if (isCollapsed) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.remove('md:ml-64');
+                mainContent.classList.add('md:ml-[72px]');
+                toggleSidebarBtn.style.left = '56px';        
+                toggleIcon.classList.add('rotate-180');
+            } else {
+                sidebar.classList.remove('collapsed');
+                mainContent.classList.remove('md:ml-[72px]');
+                mainContent.classList.add('md:ml-64');
+                toggleSidebarBtn.style.left = '240px';       
+                toggleIcon.classList.remove('rotate-180');
+            }
+        });
+
+        function toggleMobileSidebar(open) {
+            if(open) {
+                sidebar.classList.remove('-translate-x-full');
+                sidebarOverlay.classList.remove('hidden');
+                setTimeout(() => sidebarOverlay.classList.add('opacity-100'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.remove('opacity-100');
+                setTimeout(() => sidebarOverlay.classList.add('hidden'), 300);
+            }
+        }
+        openSidebarBtn.addEventListener('click', () => toggleMobileSidebar(true));
+        closeSidebarBtn.addEventListener('click', () => toggleMobileSidebar(false));
+        sidebarOverlay.addEventListener('click', () => toggleMobileSidebar(false));
+
+        navItems.forEach(item => {
+            item.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = this.getAttribute('data-target');
+                if(target) switchPanel(target);
+            });
+        });
+
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8080' 
+            : `http://${window.location.hostname.replace('8501', '8080')}`;
+        
+        const state = {
+            resumeId: null,
+            resumeFilename: null,
+            resumeAnalysis: null,
+            interviewId: null,
+            jobTitle: null,
+            interviewQuestions: [],
+            answers: {}
+        };
+
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('ach_platform_state');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    // 清除所有旧的缓存数据
+                    parsed.resumeAnalysis = null;
+                    Object.assign(state, parsed);
+                }
+            } catch (e) {
+                console.error('Failed to load state:', e);
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem('ach_platform_state', JSON.stringify({
+                    resumeId: state.resumeId,
+                    resumeFilename: state.resumeFilename,
+                    resumeAnalysis: state.resumeAnalysis,
+                    interviewId: state.interviewId,
+                    jobTitle: state.jobTitle,
+                    interviewQuestions: state.interviewQuestions
+                }));
+            } catch (e) {
+                console.error('Failed to save state:', e);
+            }
+        }
+
+        function clearState() {
+            state.resumeId = null;
+            state.resumeFilename = null;
+            state.resumeAnalysis = null;
+            state.interviewId = null;
+            state.jobTitle = null;
+            state.interviewQuestions = [];
+            state.answers = {};
+            localStorage.removeItem('ach_platform_state');
+        }
+
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_URL}${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({ detail: '请求失败' }));
+                    throw new Error(error.detail || error.message || '请求失败');
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API调用失败:', error);
+                throw error;
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            const colors = {
+                success: 'bg-emerald-500',
+                error: 'bg-rose-500',
+                warning: 'bg-amber-500',
+                info: 'bg-primary-500'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 z-50 ${colors[type]} text-white px-6 py-3 rounded-xl shadow-lg transform transition-all duration-300 translate-x-full`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.classList.remove('translate-x-full'), 100);
+            setTimeout(() => {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function showLoading(elementId, message = '处理中...') {
+            const container = document.getElementById(elementId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-12">
+                        <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 mb-4"></div>
+                        <p class="text-slate-500 text-sm">${message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function hideLoading(elementId) {
+            const container = document.getElementById(elementId);
+            if (container) {
+                container.innerHTML = '';
+            }
+        }
+
+        async function handleFileUpload(file) {
+            if (!file) {
+                showNotification('请选择文件', 'warning');
+                return;
+            }
+
+            const allowedExtensions = ['.pdf', '.docx'];
+            const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!allowedExtensions.includes(fileExtension)) {
+                showNotification('仅支持 PDF 和 DOCX 格式', 'error');
+                return;
+            }
+
+            showLoading('resume-upload-result', '正在上传和解析简历...');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(`${API_URL}/api/v1/resume/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || '上传失败');
+                }
+
+                const result = await response.json();
+                state.resumeId = result.resume_id;
+                state.resumeFilename = result.filename;
+                saveState();
+
+                hideLoading('resume-upload-result');
+                showNotification('简历上传成功！', 'success');
+                updateResumePanel();
+            } catch (error) {
+                hideLoading('resume-upload-result');
+                showNotification(`上传失败: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzeResume() {
+            if (!state.resumeId) {
+                showNotification('请先上传简历', 'warning');
+                return;
+            }
+
+            // 显示初始状态
+            showLoading('resume-analysis-result', '正在连接AI服务...');
+
+            try {
+                // 使用 EventSource 接收流式响应
+                const eventSource = new EventSource(`${API_URL}/api/v1/resume/analyze?resume_id=${state.resumeId}`);
+                
+                eventSource.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        
+                        // 更新状态显示
+                        if (data.progress && data.message) {
+                            const container = document.getElementById('resume-analysis-result');
+                            if (container) {
+                                container.innerHTML = `
+                                    <div class="flex flex-col items-center justify-center py-12">
+                                        <div class="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 mb-4"></div>
+                                        <p class="text-slate-500 text-sm">${data.message}</p>
+                                    </div>
+                                `;
+                            }
+                        }
+                        
+                        // 处理完成或失败状态
+                        if (data.status === 'completed' && data.data) {
+                            eventSource.close();
+                            hideLoading('resume-analysis-result');
+                            state.resumeAnalysis = data.data;
+                            saveState();
+                            showNotification('简历分析完成！', 'success');
+                            displayAnalysisResult(data.data);
+                        } else if (data.status === 'failed' && data.data) {
+                            eventSource.close();
+                            hideLoading('resume-analysis-result');
+                            showNotification(`分析失败: ${data.data.message}`, 'error');
+                        }
+                    } catch (error) {
+                        console.error('解析流式响应失败:', error);
+                    }
+                };
+                
+                eventSource.onerror = function(error) {
+                    eventSource.close();
+                    hideLoading('resume-analysis-result');
+                    showNotification('分析过程中发生错误', 'error');
+                    console.error('EventSource error:', error);
+                };
+                
+            } catch (error) {
+                hideLoading('resume-analysis-result');
+                showNotification(`分析失败: ${error.message}`, 'error');
+            }
+        }
+
+        function displayAnalysisResult(result) {
+            const container = document.getElementById('resume-analysis-result');
+            const categories = ['专业技能', '项目经验', '教育背景', '工作经验', '沟通能力', '学习能力'];
+            const scores = categories.map(cat => (result.scores && result.scores[cat]) || 0);
+            const totalScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+            // 优化分析报告格式：分点内容添加空行分隔
+            const formattedAnalysis = formatAnalysisReport(result.analysis || '暂无分析报告');
+
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-slate-800">简历分析报告</h3>
+                        <span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">分析完成</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="p-4 bg-slate-50 rounded-xl">
+                            <p class="text-xs text-slate-500 mb-1">文件名</p>
+                            <p class="text-sm font-medium text-slate-800 truncate">${result.filename}</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-xl">
+                            <p class="text-xs text-slate-500 mb-1">内容长度</p>
+                            <p class="text-sm font-medium text-slate-800">${result.content_length} 字符</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-xl">
+                            <p class="text-xs text-slate-500 mb-1">总分</p>
+                            <p class="text-sm font-medium text-slate-800">${Math.round(totalScore)}/100</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        ${categories.map((cat, idx) => `
+                            <div class="p-4 bg-gradient-to-br from-primary-50 to-secondary-50 rounded-xl border border-primary-100">
+                                <p class="text-xs text-slate-500 mb-1">${cat}</p>
+                                <p class="text-2xl font-bold bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">${scores[idx]}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-6">
+                        <h4 class="text-sm font-bold text-slate-800 mb-4">评分分布雷达图</h4>
+                        <div class="max-w-md mx-auto">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="prose prose-sm max-w-none">
+                        <h4 class="text-sm font-bold text-slate-800 mb-3">AI分析报告</h4>
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" style="text-indent: 2em;">
+                            ${formattedAnalysis}
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-4">
+                        <h4 class="text-sm font-bold text-slate-800 mb-3">简历内容预览</h4>
+                        <pre class="text-xs text-slate-600 whitespace-pre-wrap max-h-64 overflow-y-auto">${result.text_preview}</pre>
+                    </div>
+                </div>
+            `;
+
+            setTimeout(() => {
+                const ctx = document.getElementById('radarChart');
+                if (ctx && window.Chart) {
+                    new Chart(ctx, {
+                        type: 'radar',
+                        data: {
+                            labels: categories,
+                            datasets: [{
+                                label: '简历评分',
+                                data: scores,
+                                fill: true,
+                                backgroundColor: 'rgba(14, 165, 233, 0.2)',
+                                borderColor: 'rgb(14, 165, 233)',
+                                pointBackgroundColor: 'rgb(14, 165, 233)',
+                                pointBorderColor: '#fff',
+                                pointHoverBackgroundColor: '#fff',
+                                pointHoverBorderColor: 'rgb(14, 165, 233)'
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                r: {
+                                    angleLines: { display: true },
+                                    suggestedMin: 0,
+                                    suggestedMax: 100,
+                                    pointLabels: {
+                                        font: {
+                                            size: 14  // 增加字体大小，从默认12px调整为14px
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const value = context.raw;
+                                            return `评分: ${value}`;
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        plugins: [{
+                            id: 'customDataLabels',
+                            afterDatasetsDraw: function(chart) {
+                                const ctx = chart.ctx;
+                                chart.data.datasets.forEach(function(dataset, i) {
+                                    const meta = chart.getDatasetMeta(i);
+                                    if (!meta.hidden) {
+                                        meta.data.forEach(function(element, index) {
+                                            const value = dataset.data[index];
+                                            // 只显示60分及以上的数值标签
+                                            if (value >= 60) {
+                                                ctx.save();
+                                                ctx.font = 'bold 11px Arial';
+                                                ctx.fillStyle = 'rgb(14, 165, 233)';
+                                                ctx.textAlign = 'center';
+                                                ctx.textBaseline = 'bottom';
+                                                ctx.fillText(value, element.x, element.y - 5);
+                                                ctx.restore();
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        }]
+                    });
+                }
+            }, 100);
+        }
+
+        // 格式化分析报告：分点内容添加空行分隔
+        function formatAnalysisReport(text) {
+            if (!text || text === '暂无分析报告') {
+                return text;
+            }
+            
+            // 处理常见的分点格式
+            let formatted = text;
+            
+            // 处理数字序号格式：1. xxx 2. xxx
+            formatted = formatted.replace(/(\d+)\.\s+/g, '\n\n$1. ');
+            
+            // 处理中文序号格式：一、二、三、
+            formatted = formatted.replace(/([一二三四五六七八九十])、\s*/g, '\n\n$1、');
+            
+            // 处理星号/破折号列表格式
+            formatted = formatted.replace(/^\s*[•●*\-+]\s+/gm, '\n\n• ');
+            
+            // 处理段落之间的空白
+            formatted = formatted.replace(/\n{3,}/g, '\n\n');
+            
+            // 移除开头的空行
+            formatted = formatted.replace(/^\n+/, '');
+            
+            return formatted;
+        }
+
+        function updateResumePanel() {
+            const panel = document.getElementById('resume-panel');
+            
+            if (state.resumeId) {
+                panel.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-bold text-emerald-800 mb-1">已上传简历</h3>
+                                    <p class="text-sm text-emerald-600">文件名: ${state.resumeFilename}</p>
+                                    <p class="text-xs text-emerald-500 mt-1">简历ID: ${state.resumeId}</p>
+                                </div>
+                                <button onclick="handleReupload()" class="px-4 py-2 bg-rose-500 text-white rounded-xl text-sm font-medium hover:bg-rose-600 transition-colors">
+                                    重新上传
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="resume-analysis-result">
+                            ${state.resumeAnalysis ? '' : `
+                                <div class="bg-white rounded-2xl p-8 text-center shadow-sm border border-slate-100">
+                                    <i class="fas fa-chart-line text-4xl text-primary-500 mb-4"></i>
+                                    <h4 class="text-lg font-bold text-slate-800 mb-2">开始简历分析</h4>
+                                    <p class="text-sm text-slate-500 mb-6">AI将为您深度解析简历内容，提供多维度评分与优化建议</p>
+                                    <button onclick="analyzeResume()" class="px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors shadow-md shadow-primary-500/20">
+                                        开始分析
+                                    </button>
+                                </div>
+                            `}
+                        </div>
+
+                        ${state.resumeAnalysis ? `
+                            <div class="flex justify-center">
+                                <button onclick="analyzeResume()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors">
+                                    <i class="fas fa-refresh mr-2"></i>重新分析
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                if (state.resumeAnalysis) {
+                    displayAnalysisResult(state.resumeAnalysis);
+                }
+            } else {
+                panel.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="bg-white border-2 border-dashed border-slate-200 hover:border-primary-500 rounded-2xl p-12 text-center transition-colors cursor-pointer group" id="upload-drop-zone">
+                            <i class="fas fa-cloud-arrow-up text-4xl text-slate-300 group-hover:text-primary-500 mb-4 transition-colors"></i>
+                            <h4 class="text-slate-700 font-bold mb-1">将您的简历拖拽到此处上传</h4>
+                            <p class="text-xs text-slate-400 mb-4">支持 PDF, DOCX 格式，大小不超过 10MB</p>
+                            <input type="file" id="resume-file-input" class="hidden" accept=".pdf,.docx">
+                            <button onclick="document.getElementById('resume-file-input').click()" class="px-4 py-2 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 transition-colors shadow-md shadow-primary-500/10">
+                                选择文件
+                            </button>
+                        </div>
+                        <div id="resume-upload-result"></div>
+                    </div>
+                `;
+
+                const dropZone = document.getElementById('upload-drop-zone');
+                const fileInput = document.getElementById('resume-file-input');
+
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('border-primary-500', 'bg-primary-50');
+                });
+
+                dropZone.addEventListener('dragleave', () => {
+                    dropZone.classList.remove('border-primary-500', 'bg-primary-50');
+                });
+
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('border-primary-500', 'bg-primary-50');
+                    const file = e.dataTransfer.files[0];
+                    handleFileUpload(file);
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    handleFileUpload(file);
+                });
+            }
+        }
+
+        function handleReupload() {
+            clearState();
+            updateResumePanel();
+            showNotification('已清除简历信息，请重新上传', 'info');
+        }
+
+        async function startInterview() {
+            const jobTitleInput = document.getElementById('job-title-input');
+            const jobTitle = jobTitleInput.value.trim();
+
+            if (!jobTitle) {
+                showNotification('请输入岗位名称', 'warning');
+                return;
+            }
+
+            if (!state.resumeId) {
+                showNotification('请先上传简历', 'warning');
+                return;
+            }
+
+            showLoading('interview-result', '正在生成面试问题...');
+
+            try {
+                const result = await apiCall('/api/v1/interview/start', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        job_title: jobTitle,
+                        resume_id: state.resumeId
+                    })
+                });
+
+                if (!result.success) {
+                    throw new Error(result.message || '面试开始失败');
+                }
+
+                state.interviewId = result.interview_id;
+                state.jobTitle = jobTitle;
+                state.interviewQuestions = result.questions || [];
+                state.answers = {};
+                saveState();
+
+                hideLoading('interview-result');
+                showNotification(`面试已开始！岗位: ${jobTitle}`, 'success');
+                displayInterviewQuestions();
+            } catch (error) {
+                hideLoading('interview-result');
+                showNotification(`面试开始失败: ${error.message}`, 'error');
+            }
+        }
+
+        function displayInterviewQuestions() {
+            const container = document.getElementById('interview-result');
+            
+            if (state.interviewQuestions.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
+                        <i class="fas fa-exclamation-triangle text-4xl text-amber-500 mb-4"></i>
+                        <h4 class="text-lg font-bold text-amber-800 mb-2">未生成面试问题</h4>
+                        <p class="text-sm text-amber-600">请稍后重试或检查API配置</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800">${state.jobTitle} 模拟面试</h3>
+                            <p class="text-sm text-slate-500 mt-1">共 ${state.interviewQuestions.length} 个面试问题</p>
+                        </div>
+                        <button onclick="handleRestartInterview()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors">
+                            重新开始
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        ${state.interviewQuestions.map((q, idx) => `
+                            <div class="border border-slate-200 rounded-xl overflow-hidden">
+                                <button onclick="toggleQuestion(${idx})" class="w-full px-6 py-4 bg-slate-50 hover:bg-slate-100 text-left transition-colors flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="w-8 h-8 bg-primary-100 text-primary-600 rounded-lg flex items-center justify-center text-sm font-bold">${idx + 1}</span>
+                                        <span class="font-medium text-slate-800">${q.question}</span>
+                                    </div>
+                                    <i class="fas fa-chevron-down text-slate-400 transition-transform duration-200" id="question-icon-${idx}"></i>
+                                </button>
+                                <div id="question-content-${idx}" class="hidden px-6 py-4 bg-white">
+                                    <div class="mb-3">
+                                        <span class="px-2 py-1 bg-secondary-100 text-secondary-700 rounded text-xs font-medium">${q.type}</span>
+                                    </div>
+                                    <textarea 
+                                        id="answer-${idx}" 
+                                        class="w-full p-4 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                        rows="4"
+                                        placeholder="请输入您的回答..."
+                                    >${state.answers[idx] || ''}</textarea>
+                                    <button 
+                                        onclick="submitAnswer(${idx})" 
+                                        class="mt-3 px-6 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                                    >
+                                        提交回答
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleQuestion(idx) {
+            const content = document.getElementById(`question-content-${idx}`);
+            const icon = document.getElementById(`question-icon-${idx}`);
+            
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                content.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+
+        function submitAnswer(idx) {
+            const textarea = document.getElementById(`answer-${idx}`);
+            const answer = textarea.value.trim();
+
+            if (!answer) {
+                showNotification('请输入回答内容', 'warning');
+                return;
+            }
+
+            state.answers[idx] = answer;
+            saveState();
+            showNotification(`回答 ${idx + 1} 已提交！`, 'success');
+        }
+
+        function handleRestartInterview() {
+            state.interviewId = null;
+            state.jobTitle = null;
+            state.interviewQuestions = [];
+            state.answers = {};
+            saveState();
+            updateInterviewPanel();
+            showNotification('已清除面试信息', 'info');
+        }
+
+        function updateInterviewPanel() {
+            const panel = document.getElementById('interview-panel');
+
+            if (!state.resumeId) {
+                panel.innerHTML = `
+                    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center">
+                        <i class="fas fa-exclamation-circle text-4xl text-amber-500 mb-4"></i>
+                        <h4 class="text-lg font-bold text-amber-800 mb-2">请先上传简历</h4>
+                        <p class="text-sm text-amber-600 mb-4">开始模拟面试前，请先上传您的简历</p>
+                        <button onclick="switchPanel('resume-panel')" class="px-6 py-2 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 transition-colors">
+                            前往上传简历
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            if (state.interviewId && state.interviewQuestions.length > 0) {
+                panel.innerHTML = `
+                    <div class="space-y-6">
+                        <div id="interview-result"></div>
+                    </div>
+                `;
+                displayInterviewQuestions();
+            } else {
+                panel.innerHTML = `
+                    <div class="space-y-6">
+                        <div class="bg-white border border-slate-100 rounded-2xl p-8 shadow-sm">
+                            <div class="w-16 h-16 bg-secondary-50 text-secondary-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <i class="fas fa-video text-2xl"></i>
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-800 mb-2 text-center">进入AI面试准备房间</h3>
+                            <p class="text-sm text-slate-500 max-w-md mx-auto mb-6 text-center">请输入您想要模拟面试的岗位，AI将基于您的简历生成针对性面试问题</p>
+                            
+                            <div class="max-w-md mx-auto space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-2">目标岗位</label>
+                                    <input 
+                                        type="text" 
+                                        id="job-title-input" 
+                                        class="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                                        placeholder="例如：软件工程师、数据分析师"
+                                        value="${state.jobTitle || ''}"
+                                    >
+                                </div>
+                                <button 
+                                    onclick="startInterview()" 
+                                    class="w-full px-6 py-3 bg-secondary-600 text-white rounded-xl font-medium hover:bg-secondary-700 transition-colors shadow-md shadow-secondary-500/20"
+                                >
+                                    开始模拟面试
+                                </button>
+                            </div>
+                        </div>
+                        <div id="interview-result"></div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateHistoryPanel() {
+            const panel = document.getElementById('history-panel');
+
+            if (!state.resumeId) {
+                panel.innerHTML = `
+                    <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800 text-sm">历次模拟对练明细</h3>
+                        </div>
+                        <div class="p-8 text-center text-slate-400 text-sm">
+                            <i class="fas fa-folder-open text-3xl mb-3 block text-slate-300"></i>
+                            暂无历史面试复盘数据，请先上传简历
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            panel.innerHTML = `
+                <div class="space-y-6">
+                    <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800 text-sm">已上传简历</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-800">${state.resumeFilename}</p>
+                                    <p class="text-xs text-slate-500 mt-1">简历ID: ${state.resumeId}</p>
+                                </div>
+                                <span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">已上传</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${state.resumeAnalysis ? `
+                        <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                                <h3 class="font-bold text-slate-800 text-sm">简历分析结果</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="prose prose-sm max-w-none">
+                                    <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                        ${state.resumeAnalysis.analysis || '暂无分析报告'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${state.interviewQuestions.length > 0 ? `
+                        <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                            <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                                <h3 class="font-bold text-slate-800 text-sm">最近面试记录</h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div>
+                                        <p class="text-sm font-medium text-slate-800">${state.jobTitle}</p>
+                                        <p class="text-xs text-slate-500 mt-1">共 ${state.interviewQuestions.length} 个问题</p>
+                                    </div>
+                                    <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">已完成</span>
+                                </div>
+                                <div class="space-y-2">
+                                    ${state.interviewQuestions.slice(0, 3).map((q, idx) => `
+                                        <div class="p-3 bg-slate-50 rounded-lg">
+                                            <p class="text-sm text-slate-700">${idx + 1}. ${q.question}</p>
+                                            <p class="text-xs text-slate-500 mt-1">类型: ${q.type}</p>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        const originalSwitchPanel = window.switchPanel;
+        window.switchPanel = function(targetPanelId) {
+            originalSwitchPanel(targetPanelId);
+            
+            if (targetPanelId === 'resume-panel') {
+                updateResumePanel();
+            } else if (targetPanelId === 'interview-panel') {
+                updateInterviewPanel();
+            } else if (targetPanelId === 'history-panel') {
+                updateHistoryPanel();
+            }
+        };
+
+        loadState();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (state.resumeId) {
+                updateResumePanel();
+            }
+        });
+    </script>
+</body>
+</html>

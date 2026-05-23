@@ -1,0 +1,86 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ach-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://achuser:achpassword@postgres:5432/achdb
+      - REDIS_URL=redis://redis:6379/0
+      - SILICONFLOW_API_KEY=sk-xzmxkddezweuclijrxgoeakjpukscmytpxywjfgdhdgmrqiy
+      - SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
+      - MODEL_NAME=Qwen/Qwen3.5-4B
+      - MAX_TOKENS=4096
+      - temperature=0.7
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./temp:/app/temp
+    restart: unless-stopped
+    networks:
+      - ach-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: ach-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://backend:8080
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - ach-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: ach-postgres
+    environment:
+      - POSTGRES_USER=achuser
+      - POSTGRES_PASSWORD=achpassword
+      - POSTGRES_DB=achdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U achuser -d achdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ach-network
+
+  redis:
+    image: redis:7
+    container_name: ach-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ach-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  ach-network:
+    driver: bridge

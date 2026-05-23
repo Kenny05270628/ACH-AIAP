@@ -1,12 +1,13 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Query
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import uuid
 import os
 import sys
 import json
+import re
 from pathlib import Path
 import pdfplumber
 from docx import Document
@@ -38,10 +39,10 @@ app = FastAPI(
 # 配置CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # 允许React应用的源
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # 允许所有HTTP方法
-    allow_headers=["*"],  # 允许所有HTTP头
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # 确保临时目录存在
@@ -172,15 +173,24 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
         
         # 调用硅基流动API
         print(f"[DEBUG] 调用硅基流动API，prompt长度: {len(prompt)}")
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
+        
+        # 构建API参数
+        api_params = {
+            "model": MODEL_NAME,
+            "messages": [
                 {"role": "system", "content": "你是一位专业的简历分析师，能够提供结构化的简历分析和多维度评分。"},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=MAX_TOKENS,
-            temperature=temperature
-        )
+            "max_tokens": 2048,  # 减少token限制，加快响应速度
+            "temperature": 0.5,   # 降低随机性，提高一致性
+            "response_format": {"type": "json_object"}  # 强制JSON格式输出
+        }
+        
+        # 如果是推理模型(Qwen3.5系列)，禁用思考模式以加快响应
+        if "Qwen3.5" in MODEL_NAME:
+            api_params["extra_body"] = {"thinking": {"type": "disabled"}}
+        
+        response = client.chat.completions.create(**api_params)
         
         print(f"[DEBUG] API响应: {response}")
         if response.choices and response.choices[0].message.content:
@@ -201,11 +211,13 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
                     "message": "AI分析失败：返回内容为空"
                 }
             
+            # 移除markdown代码块标记
+            ai_content = ai_content.replace('```json', '').replace('```', '').strip()
+            
             # 检查内容是否以JSON开头
             if not (ai_content.startswith('{') or ai_content.startswith('[')):
                 print(f"[ERROR] AI返回的内容不是有效的JSON开头: '{ai_content[:20]}...'")
                 # 尝试提取JSON部分（可能AI返回了额外的文本）
-                import re
                 json_match = re.search(r'\{.*\}|\[.*\]', ai_content, re.DOTALL)
                 if json_match:
                     ai_content = json_match.group(0)
@@ -219,8 +231,36 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
                     }
             
             try:
-                # 解析JSON格式的响应
-                result = json.loads(ai_content)
+                # 修复常见的JSON转义问题
+                # 将无效的转义字符替换为有效格式
+                ai_content = ai_content.replace('\\D', '。').replace('\\d', '')
+                ai_content = ai_content.replace('\\n', '\n').replace('\\t', '\t')
+                
+                # 修复AI返回的JSON中未转义的换行符（这是最常见的问题）
+                # 匹配 "analysis": "..." 中的未转义换行符
+                ai_content = re.sub(r'( "analysis": ")(.*?)(",\s*"scores")', 
+                    lambda m: m.group(1) + m.group(2).replace('\n', '\\n').replace('\r', '') + m.group(3), 
+                    ai_content, flags=re.DOTALL)
+                
+                # 尝试解析JSON
+                try:
+                    result = json.loads(ai_content)
+                except json.JSONDecodeError:
+                    # 如果解析失败，尝试修复常见的JSON格式问题
+                    
+                    # 修复scores被包裹在字符串中的问题
+                    # 匹配 "scores": " { ... }" 模式并移除引号
+                    scores_pattern = r'"scores"\s*:\s*"\s*\{([^}]+)\}\s*"'
+                    scores_match = re.search(scores_pattern, ai_content, re.DOTALL)
+                    if scores_match:
+                        scores_str = scores_match.group(1)
+                        # 修复scores内部的格式问题
+                        scores_str = scores_str.replace('" "', '", "').replace(': "', '": ').replace('" }', '"}')
+                        ai_content = re.sub(scores_pattern, f'"scores": {{{scores_str}}}', ai_content, flags=re.DOTALL)
+                    
+                    # 再次尝试解析
+                    result = json.loads(ai_content)
+                
                 return {
                     "success": True,
                     "analysis": result.get("analysis", ""),
@@ -229,6 +269,7 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
                 }
             except json.JSONDecodeError as e:
                 print(f"[ERROR] 解析AI分析结果JSON失败: {e}")
+                print(f"[ERROR] 问题内容: '{ai_content[:200]}...'")
                 return {
                     "success": False,
                     "analysis": "",
@@ -326,15 +367,24 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
         
         # 调用硅基流动API
         print(f"[DEBUG] 调用硅基流动API生成面试问题，prompt长度: {len(prompt)}")
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[
+        
+        # 构建API参数
+        api_params = {
+            "model": MODEL_NAME,
+            "messages": [
                 {"role": "system", "content": f"你是一位专业的{job_title}面试官，擅长生成结构化、针对性强的面试问题。"},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,  # 适当减少token数，因为只需要10个问题
-            temperature=temperature
-        )
+            "max_tokens": 1024,  # 适当减少token数，因为只需要10个问题
+            "temperature": 0.5,
+            "response_format": {"type": "json_object"}  # 强制JSON格式输出
+        }
+        
+        # 如果是推理模型(Qwen3.5系列)，禁用思考模式以加快响应
+        if "Qwen3.5" in MODEL_NAME:
+            api_params["extra_body"] = {"thinking": {"type": "disabled"}}
+        
+        response = client.chat.completions.create(**api_params)
         
         print(f"[DEBUG] API响应: {response}")
         if response.choices and response.choices[0].message.content:
@@ -359,7 +409,6 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
             if not (questions_content.startswith('{') or questions_content.startswith('[')):
                 print(f"[ERROR] 面试问题AI返回的内容不是有效的JSON开头: '{questions_content[:20]}...'")
                 # 尝试提取JSON部分（可能AI返回了额外的文本）
-                import re
                 json_match = re.search(r'\{.*\}|\[.*\]', questions_content, re.DOTALL)
                 if json_match:
                     questions_content = json_match.group(0)
@@ -421,47 +470,71 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
                 "message": f"面试问题生成过程中出现错误：{error_msg}"
             }
 
-@app.post("/api/v1/resume/analyze")
-async def analyze_resume(resume_id: str):
-    """分析简历内容"""
+@app.get("/api/v1/resume/analyze")
+async def analyze_resume(resume_id: str = Query(..., description="简历ID")):
+    """分析简历内容（流式响应，返回实际处理进度）"""
     if resume_id not in resumes:
         raise HTTPException(status_code=404, detail="未找到该简历ID")
     
     resume = resumes[resume_id]
     resume["status"] = "analyzing"
     
-    # 调用AI分析简历
-    ai_result = analyze_resume_with_ai(resume["text"])
+    import asyncio
     
-    if ai_result["success"]:
-        resume["status"] = "analyzed"
-        resume["analysis"] = ai_result["analysis"]
-        resume["scores"] = ai_result.get("scores", {})
+    def sse_msg(data):
+        """格式化为SSE协议格式: data: {json}\n\n"""
+        return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+    
+    async def generate_progress():
+        yield sse_msg({"progress": 1, "status": "connecting", "message": "正在连接AI服务..."})
+        await asyncio.sleep(0)
         
-        return JSONResponse({
-            "resume_id": resume_id,
-            "filename": resume["filename"],
-            "text_preview": resume["text"][:500] + ("..." if len(resume["text"]) > 500 else ""),
-            "content_length": len(resume["text"]),
-            "analysis": ai_result["analysis"],
-            "scores": ai_result.get("scores", {}),
-            "message": "简历分析完成",
-            "status": "analyzed"
-        })
-    else:
-        resume["status"] = "analysis_failed"
+        yield sse_msg({"progress": 2, "status": "analyzing", "message": "正在分析简历内容..."})
+        await asyncio.sleep(0)
         
-        # 返回分析失败的响应，包含原始简历文本供参考
-        return JSONResponse({
-            "resume_id": resume_id,
-            "filename": resume["filename"],
-            "text_preview": resume["text"][:500] + ("..." if len(resume["text"]) > 500 else ""),
-            "content_length": len(resume["text"]),
-            "analysis": "",
-            "scores": {},
-            "message": ai_result["message"],
-            "status": "analysis_failed"
-        })
+        yield sse_msg({"progress": 3, "status": "generating", "message": "正在生成分析报告..."})
+        await asyncio.sleep(0)
+        
+        ai_result = analyze_resume_with_ai(resume["text"])
+        
+        yield sse_msg({"progress": 4, "status": "processing", "message": "正在整理评分数据..."})
+        await asyncio.sleep(0)
+        
+        if ai_result["success"]:
+            resume["status"] = "analyzed"
+            resume["analysis"] = ai_result["analysis"]
+            resume["scores"] = ai_result.get("scores", {})
+            
+            yield sse_msg({
+                "progress": 5, "status": "completed", "message": "分析完成",
+                "data": {
+                    "resume_id": resume_id,
+                    "filename": resume["filename"],
+                    "text_preview": resume["text"][:500] + ("..." if len(resume["text"]) > 500 else ""),
+                    "content_length": len(resume["text"]),
+                    "analysis": ai_result["analysis"],
+                    "scores": ai_result.get("scores", {}),
+                    "message": "简历分析完成",
+                    "status": "analyzed"
+                }
+            })
+        else:
+            resume["status"] = "analysis_failed"
+            yield sse_msg({
+                "progress": 5, "status": "failed", "message": "分析失败",
+                "data": {
+                    "resume_id": resume_id,
+                    "filename": resume["filename"],
+                    "text_preview": resume["text"][:500] + ("..." if len(resume["text"]) > 500 else ""),
+                    "content_length": len(resume["text"]),
+                    "analysis": "",
+                    "scores": {},
+                    "message": ai_result["message"],
+                    "status": "analysis_failed"
+                }
+            })
+    
+    return StreamingResponse(generate_progress(), media_type="text/event-stream")
 
 @app.get("/api/v1/resume/{resume_id}")
 async def get_resume(resume_id: str):
