@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Query, Depends
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +23,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from backend.config.config import SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL, MODEL_NAME, MAX_TOKENS, temperature
 from backend.app import repository
 from backend.app.db import init_db, close_db
+from backend.app.auth import (
+    create_access_token,
+    decode_access_token,
+    get_optional_user,
+    hash_password,
+    require_user,
+    verify_password,
+)
 
 # 配置硅基流动API
 client = OpenAI(
@@ -44,6 +52,34 @@ class AnswerRequest(BaseModel):
     question: str
     question_index: int = 0
     answer: str
+
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    username: str = ""
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+def _public_user(user: dict) -> dict:
+    return {
+        "id": str(user["id"]),
+        "email": user["email"],
+        "username": user.get("username") or "",
+    }
+
+
+def _ensure_owner(resource: dict, user: str | None) -> None:
+    """资源归属校验：历史遗留的无归属数据保持可访问，已归属数据仅本人可见"""
+    owner_id = resource.get("user_id")
+    if owner_id is None:
+        return
+    if not user or str(owner_id) != str(user):
+        raise HTTPException(status_code=404, detail="未找到该资源")
 
 
 @asynccontextmanager
@@ -120,8 +156,70 @@ async def _temp_cleanup_loop():
 async def root():
     return {"message": "欢迎使用智能面试辅助平台 API！"}
 
+
+@app.post("/api/v1/auth/register")
+async def register(request: RegisterRequest):
+    """注册账号，成功后直接返回登录令牌"""
+    email = request.email.strip().lower()
+    password = request.password
+    username = request.username.strip() or email.split("@")[0]
+
+    if "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="请输入有效的邮箱地址")
+    if len(password) < 6:
+        raise HTTPException(status_code=400, detail="密码至少需要 6 位")
+    if len(password) > 128:
+        raise HTTPException(status_code=400, detail="密码长度不能超过 128 位")
+
+    if repository.get_user_by_email(email):
+        raise HTTPException(status_code=400, detail="该邮箱已注册，请直接登录")
+
+    user_id = str(uuid.uuid4())
+    repository.create_user(user_id, email, username, hash_password(password))
+    user = repository.get_user(user_id)
+
+    return JSONResponse({
+        "access_token": create_access_token(user_id),
+        "token_type": "bearer",
+        "user": _public_user(user),
+    })
+
+
+@app.post("/api/v1/auth/login")
+async def login(request: LoginRequest):
+    """账号密码登录"""
+    email = request.email.strip().lower()
+    user = repository.get_user_by_email(email)
+    if not user or not verify_password(request.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="邮箱或密码不正确")
+
+    return JSONResponse({
+        "access_token": create_access_token(str(user["id"])),
+        "token_type": "bearer",
+        "user": _public_user(user),
+    })
+
+
+@app.get("/api/v1/auth/me")
+async def get_me(user: dict = Depends(require_user)):
+    """获取当前登录用户信息"""
+    return JSONResponse({"user": _public_user(user)})
+
+
+@app.get("/api/v1/me/resumes")
+async def list_my_resumes(user: dict = Depends(require_user)):
+    """当前用户的简历列表"""
+    return JSONResponse({"resumes": repository.list_user_resumes(str(user["id"]))})
+
+
+@app.get("/api/v1/me/interviews")
+async def list_my_interviews(user: dict = Depends(require_user)):
+    """当前用户的面试记录列表"""
+    return JSONResponse({"interviews": repository.list_user_interviews(str(user["id"]))})
+
+
 @app.post("/api/v1/resume/upload")
-async def upload_resume(file: UploadFile = File(...)):
+async def upload_resume(file: UploadFile = File(...), user: dict | None = Depends(get_optional_user)):
     """上传简历文件"""
     allowed_extensions = {".pdf", ".docx"}
     file_extension = file.filename.split(".")[-1].lower()
@@ -157,7 +255,8 @@ async def upload_resume(file: UploadFile = File(...)):
         resume_id=resume_id,
         filename=file.filename,
         file_path=str(file_path),
-        content_text=resume_text
+        content_text=resume_text,
+        user_id=str(user["id"]) if user else None
     )
     
     return JSONResponse({
@@ -578,11 +677,18 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
             }
 
 @app.get("/api/v1/resume/analyze")
-async def analyze_resume(resume_id: str = Query(..., description="简历ID")):
+async def analyze_resume(resume_id: str = Query(..., description="简历ID"),
+                         token: str | None = Query(None, description="EventSource 场景使用的令牌"),
+                         user: dict | None = Depends(get_optional_user)):
     """分析简历内容（流式响应，返回实际处理进度）"""
+    if not user and token:
+        token_user_id = decode_access_token(token)
+        user = repository.get_user(token_user_id) if token_user_id else None
+
     resume = repository.get_resume(resume_id)
     if not resume:
         raise HTTPException(status_code=404, detail="未找到该简历ID")
+    _ensure_owner(resume, str(user["id"]) if user else None)
 
     repository.update_resume_status(resume_id, "analyzing")
     resume_text = resume["content_text"]
@@ -646,11 +752,12 @@ async def analyze_resume(resume_id: str = Query(..., description="简历ID")):
     return StreamingResponse(generate_progress(), media_type="text/event-stream")
 
 @app.get("/api/v1/resume/{resume_id}")
-async def get_resume(resume_id: str):
+async def get_resume(resume_id: str, user: dict | None = Depends(get_optional_user)):
     """获取简历详情"""
     resume = repository.get_resume(resume_id)
     if not resume:
         raise HTTPException(status_code=404, detail="未找到该简历ID")
+    _ensure_owner(resume, str(user["id"]) if user else None)
 
     return JSONResponse({
         "resume_id": resume_id,
@@ -659,11 +766,12 @@ async def get_resume(resume_id: str):
     })
 
 @app.post("/api/v1/interview/start")
-async def start_interview(request: InterviewRequest):
+async def start_interview(request: InterviewRequest, user: dict | None = Depends(get_optional_user)):
     """开始AI模拟面试"""
     job_title = request.job_title
     resume_id = request.resume_id
     resume_text = ""
+    user_id = str(user["id"]) if user else None
     
     # 如果提供了简历ID，获取简历内容
     if resume_id:
@@ -677,6 +785,7 @@ async def start_interview(request: InterviewRequest):
                 },
                 status_code=404
             )
+        _ensure_owner(resume, user_id)
         resume_text = resume["content_text"]
     
     # 调用AI生成面试问题
@@ -685,7 +794,7 @@ async def start_interview(request: InterviewRequest):
     if ai_result["success"]:
         # 生成面试ID
         interview_id = str(uuid.uuid4())
-        repository.create_interview(interview_id, resume_id, job_title, ai_result["questions"])
+        repository.create_interview(interview_id, resume_id, job_title, ai_result["questions"], user_id)
         
         # 返回成功响应，包含面试问题
         return JSONResponse({
@@ -760,7 +869,7 @@ def evaluate_answer_with_ai(job_title: str, question: str, answer: str) -> dict:
 
 
 @app.post("/api/v1/interview/answer")
-async def submit_answer(request: AnswerRequest):
+async def submit_answer(request: AnswerRequest, user: dict | None = Depends(get_optional_user)):
     """提交面试答案并由AI评分"""
     answer = request.answer.strip()
     if not answer:
@@ -769,6 +878,7 @@ async def submit_answer(request: AnswerRequest):
     interview = repository.get_interview(request.interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="未找到该面试ID")
+    _ensure_owner(interview, str(user["id"]) if user else None)
 
     ai_result = evaluate_answer_with_ai(interview["job_title"], request.question, answer)
     if not ai_result["success"]:
@@ -799,11 +909,12 @@ async def submit_answer(request: AnswerRequest):
 
 
 @app.get("/api/v1/interview/{interview_id}")
-async def get_interview(interview_id: str):
+async def get_interview(interview_id: str, user: dict | None = Depends(get_optional_user)):
     """获取面试详情与已提交答案的评估结果"""
     interview = repository.get_interview(interview_id)
     if not interview:
         raise HTTPException(status_code=404, detail="未找到该面试ID")
+    _ensure_owner(interview, str(user["id"]) if user else None)
 
     return JSONResponse({
         "interview_id": interview_id,

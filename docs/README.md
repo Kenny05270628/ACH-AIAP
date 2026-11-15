@@ -48,6 +48,10 @@ temperature=0.7
 DATABASE_URL=postgresql://achuser:achpassword@localhost:5432/achdb
 # temp 目录文件保留时长（小时），默认 24
 TEMP_FILE_TTL_HOURS=24
+# 登录令牌签名密钥，生成：python3 -c "import secrets;print(secrets.token_urlsafe(48))"
+JWT_SECRET=your-jwt-secret-here
+# 令牌有效期（小时），默认 168（7 天）
+JWT_EXPIRE_HOURS=168
 ```
 
 后端启动时会自动读取项目根目录的 `.env`；容器环境由 `docker-compose.yml` 的 `env_file` 注入，已存在的环境变量优先（容器内 `DATABASE_URL` 指向 `postgres:5432`）。
@@ -91,6 +95,16 @@ uv run python tests/backend/test_ai_analysis.py
 ```
 
 ## API端点
+
+### 用户认证
+
+- `POST /api/v1/auth/register` - 注册（邮箱 + 密码，成功直接返回令牌）
+- `POST /api/v1/auth/login` - 登录，返回 `access_token`
+- `GET /api/v1/auth/me` - 当前用户信息（需登录）
+- `GET /api/v1/me/resumes` - 我的简历列表（需登录）
+- `GET /api/v1/me/interviews` - 我的面试记录列表（需登录）
+
+除认证接口外，其余接口均兼容游客访问：请求头带 `Authorization: Bearer <token>` 时数据会归属到该用户，未带则按游客处理。已归属的数据仅本人可访问，他人或游客访问返回 404。
 
 ### 简历管理
 
@@ -153,16 +167,19 @@ uv run python tests/backend/test_ai_analysis.py
 1. 在项目根目录 `.env` 中配置 SiliconFlow API 密钥（参考 `.env.example`），密钥不会进入版本控制
 2. 仅支持PDF和DOCX格式的简历文件
 3. 上传的简历文件实际保存在 `temp/` 目录中
-4. 简历、分析结果与面试会话存储在 PostgreSQL（`resumes`、`resume_analyses`、`interviews`、`interview_answers` 四张表），表结构在后端启动时自动创建
+4. 简历、分析结果、面试会话与用户账号存储在 PostgreSQL（`users`、`resumes`、`resume_analyses`、`interviews`、`interview_answers` 五张表），表结构在后端启动时自动创建
 5. `uploads/`、`temp/` 和 `.env` 已加入 `.gitignore`
 6. 前端 API 地址默认按当前主机名推导（`8501` → `8080`），跨机部署时需调整 `frontend/index.html` 中的 `API_URL`
+7. 登录态为 JWT，前端保存在 `localStorage`；更换 `JWT_SECRET` 会使所有已签发令牌失效
+8. 简历分析使用 SSE（EventSource 不支持自定义请求头），令牌通过查询参数 `token` 传递，生产环境建议改为同源反代后使用 Cookie
 
 ## 开发计划
 
 - [x] 接入 PostgreSQL，实现简历/分析/面试数据持久化
+- [x] 用户注册/登录（JWT）与数据归属隔离
+- [x] 实现面试答案评估
+- [x] 历史记录面板切换为服务端查询
 - [ ] 接入 Redis（缓存或限流）
-- [ ] 完善用户认证系统
-- [ ] 实现面试答案评估与历史记录
 - [ ] 支持多语言界面
 - [ ] 部署到生产环境
 

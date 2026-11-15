@@ -10,8 +10,17 @@ from psycopg2.extras import RealDictCursor
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id UUID PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL DEFAULT '',
+    password_hash TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS resumes (
     id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     filename TEXT NOT NULL,
     file_path TEXT NOT NULL,
     content_text TEXT NOT NULL,
@@ -19,6 +28,12 @@ CREATE TABLE IF NOT EXISTS resumes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE resumes
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_resumes_user_id
+    ON resumes (user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS resume_analyses (
     id BIGSERIAL PRIMARY KEY,
@@ -34,11 +49,18 @@ CREATE INDEX IF NOT EXISTS idx_resume_analyses_resume_id
 
 CREATE TABLE IF NOT EXISTS interviews (
     id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     resume_id UUID REFERENCES resumes(id) ON DELETE SET NULL,
     job_title TEXT NOT NULL,
     questions JSONB NOT NULL DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE interviews
+    ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
+
+CREATE INDEX IF NOT EXISTS idx_interviews_user_id
+    ON interviews (user_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS interview_answers (
     id BIGSERIAL PRIMARY KEY,

@@ -21,3 +21,7 @@ SILICONFLOW_BASE_URL = os.getenv("SILICONFLOW_BASE_URL", "https://api.siliconflo
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "4096"))
 temperature = float(os.getenv("temperature", "0.7"))
+
+# 登录令牌配置：JWT_SECRET 缺失时由 auth.py 生成临时密钥（重启失效）
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+JWT_EXPIRE_HOURS = int(os.getenv("JWT_EXPIRE_HOURS", "168"))
