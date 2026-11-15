@@ -103,7 +103,8 @@ async def upload_resume(file: UploadFile = File(...)):
         "resume_id": resume_id,
         "filename": file.filename,
         "message": "简历上传并解析成功",
-        "content_length": len(resume_text)
+        "content_length": len(resume_text),
+        "text_preview": resume_text[:500] + ("..." if len(resume_text) > 500 else "")
     })
 
 def parse_pdf(file_path: str) -> str:

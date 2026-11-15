@@ -436,6 +436,7 @@
         const state = {
             resumeId: null,
             resumeFilename: null,
+            resumePreview: '',
             resumeAnalysis: null,
             interviewId: null,
             jobTitle: null,
@@ -462,6 +463,7 @@
                 localStorage.setItem('ach_platform_state', JSON.stringify({
                     resumeId: state.resumeId,
                     resumeFilename: state.resumeFilename,
+                    resumePreview: state.resumePreview,
                     resumeAnalysis: state.resumeAnalysis,
                     interviewId: state.interviewId,
                     jobTitle: state.jobTitle,
@@ -475,6 +477,7 @@
         function clearState() {
             state.resumeId = null;
             state.resumeFilename = null;
+            state.resumePreview = '';
             state.resumeAnalysis = null;
             state.interviewId = null;
             state.jobTitle = null;
@@ -577,6 +580,7 @@
                 const result = await response.json();
                 state.resumeId = result.resume_id;
                 state.resumeFilename = result.filename;
+                state.resumePreview = result.text_preview || '';
                 saveState();
 
                 hideLoading('resume-upload-result');
@@ -655,8 +659,8 @@
             const scores = categories.map(cat => (result.scores && result.scores[cat]) || 0);
             const totalScore = scores.reduce((a, b) => a + b, 0) / scores.length;
 
-            // 优化分析报告格式：分点内容添加空行分隔
-            const formattedAnalysis = formatAnalysisReport(result.analysis || '暂无分析报告');
+            // 将分析报告解析为结构化内容（标题/段落/列表）
+            const formattedAnalysis = renderAnalysisReport(result.analysis);
 
             container.innerHTML = `
                 <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
@@ -696,16 +700,11 @@
                         </div>
                     </div>
 
-                    <div class="prose prose-sm max-w-none">
+                    <div>
                         <h4 class="text-sm font-bold text-slate-800 mb-3">AI分析报告</h4>
-                        <div class="bg-white rounded-xl p-4 border border-slate-200 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap" style="text-indent: 2em;">
+                        <div class="bg-white rounded-xl p-5 border border-slate-200">
                             ${formattedAnalysis}
                         </div>
-                    </div>
-
-                    <div class="bg-slate-50 rounded-xl p-4">
-                        <h4 class="text-sm font-bold text-slate-800 mb-3">简历内容预览</h4>
-                        <pre class="text-xs text-slate-600 whitespace-pre-wrap max-h-64 overflow-y-auto">${result.text_preview}</pre>
                     </div>
                 </div>
             `;
@@ -783,37 +782,113 @@
             }, 100);
         }
 
-        // 格式化分析报告：分点内容添加空行分隔
-        function formatAnalysisReport(text) {
-            if (!text || text === '暂无分析报告') {
-                return text;
+        // HTML 转义，避免简历/AI内容破坏页面结构
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        // 将AI报告文本解析为结构化HTML：标题 / 段落 / 列表，间距统一由样式控制
+        function renderAnalysisReport(text) {
+            if (!text) {
+                return '<p class="text-sm text-slate-400">暂无分析报告</p>';
             }
-            
-            // 处理常见的分点格式
-            let formatted = text;
-            
-            // 处理数字序号格式：1. xxx 2. xxx
-            formatted = formatted.replace(/(\d+)\.\s+/g, '\n\n$1. ');
-            
-            // 处理中文序号格式：一、二、三、
-            formatted = formatted.replace(/([一二三四五六七八九十])、\s*/g, '\n\n$1、');
-            
-            // 处理星号/破折号列表格式
-            formatted = formatted.replace(/^\s*[•●*\-+]\s+/gm, '\n\n• ');
-            
-            // 处理段落之间的空白
-            formatted = formatted.replace(/\n{3,}/g, '\n\n');
-            
-            // 移除开头的空行
-            formatted = formatted.replace(/^\n+/, '');
-            
-            return formatted;
+
+            const inline = (s) => escapeHtml(s)
+                .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-slate-900">$1</strong>');
+
+            // 预处理：还原转义换行、去掉行首缩进（含全角空格）、把同行内的编号拆成独立行
+            const normalized = String(text)
+                .replace(/\\n/g, '\n')
+                .replace(/\r\n/g, '\n')
+                .split('\n')
+                .map(line => line.replace(/^[\s\u3000]+/, '').trimEnd())
+                .join('\n')
+                .replace(/(?<=[^\n])(?<!\d)(\d{1,2})[.、]\s+(?=[^\d\s])/g, '\n$1. ')
+                .split('\n');
+
+            const blocks = [];
+            let list = null;
+            const flushList = () => {
+                if (list) {
+                    blocks.push(list);
+                    list = null;
+                }
+            };
+
+            normalized.forEach(line => {
+                const content = line.trim();
+                if (!content) {
+                    flushList();
+                    return;
+                }
+
+                let match;
+
+                // 标题：Markdown 标题、【标题】、**标题**、中文序号短句
+                if ((match = content.match(/^#{1,6}\s*(.+)$/))
+                    || (match = content.match(/^【(.+)】$/))
+                    || (match = content.match(/^\*\*(.+?)\*\*$/))
+                    || (/^[一二三四五六七八九十]+[、.]/.test(content) && content.length <= 30)) {
+                    flushList();
+                    blocks.push({ type: 'h', text: match ? match[1] : content });
+                    return;
+                }
+
+                // 无序列表：- • ● * +
+                if ((match = content.match(/^[-•●*+]\s+(.+)$/))) {
+                    if (list && list.type !== 'ul') flushList();
+                    if (!list) list = { type: 'ul', items: [] };
+                    list.items.push(match[1]);
+                    return;
+                }
+
+                // 有序列表：1. / 1、 / （1）
+                if ((match = content.match(/^\d{1,2}[.、)]\s+(.+)$/))
+                    || (match = content.match(/^[（(]\d{1,2}[)）]\s*(.+)$/))) {
+                    if (list && list.type !== 'ol') flushList();
+                    if (!list) list = { type: 'ol', items: [] };
+                    list.items.push(match[1]);
+                    return;
+                }
+
+                // 普通段落
+                flushList();
+                blocks.push({ type: 'p', text: content });
+            });
+            flushList();
+
+            return blocks.map(block => {
+                if (block.type === 'h') {
+                    return `<h5 class="flex items-center gap-2 text-sm font-bold text-slate-800 mt-5 mb-2 first:mt-0">
+                        <span class="w-1 h-4 rounded-full bg-gradient-to-b from-primary-500 to-secondary-500 shrink-0"></span>
+                        <span>${inline(block.text)}</span>
+                    </h5>`;
+                }
+                if (block.type === 'ul') {
+                    return `<ul class="space-y-2 mb-3 last:mb-0">
+                        ${block.items.map(item => `<li class="flex gap-2 text-sm text-slate-700 leading-7">
+                            <span class="mt-2.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"></span>
+                            <span class="flex-1">${inline(item)}</span>
+                        </li>`).join('')}
+                    </ul>`;
+                }
+                if (block.type === 'ol') {
+                    return `<ol class="list-decimal pl-5 space-y-2 mb-3 last:mb-0 text-sm text-slate-700 leading-7 marker:text-primary-500 marker:font-semibold">
+                        ${block.items.map(item => `<li class="pl-1">${inline(item)}</li>`).join('')}
+                    </ol>`;
+                }
+                return `<p class="text-sm text-slate-700 leading-7 mb-3 last:mb-0">${inline(block.text)}</p>`;
+            }).join('');
         }
 
         function updateResumePanel() {
             const panel = document.getElementById('resume-panel');
             
             if (state.resumeId) {
+                const previewText = state.resumePreview || (state.resumeAnalysis && state.resumeAnalysis.text_preview) || '';
                 panel.innerHTML = `
                     <div class="space-y-6">
                         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
@@ -828,6 +903,22 @@
                                 </button>
                             </div>
                         </div>
+
+                        ${previewText ? `
+                        <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+                                <h3 class="font-bold text-slate-800 text-sm">
+                                    <i class="fas fa-file-lines text-primary-500 mr-2"></i>简历内容预览
+                                </h3>
+                                <span class="text-xs text-slate-400">解析文本前 500 字</span>
+                            </div>
+                            <div class="p-6">
+                                <div class="bg-slate-50 border border-slate-100 rounded-xl p-5 max-h-64 overflow-y-auto">
+                                    <div class="text-sm leading-7 text-slate-600 whitespace-pre-wrap">${escapeHtml(previewText)}</div>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
 
                         <div id="resume-analysis-result">
                             ${state.resumeAnalysis ? '' : `
@@ -1144,10 +1235,8 @@
                                 <h3 class="font-bold text-slate-800 text-sm">简历分析结果</h3>
                             </div>
                             <div class="p-6">
-                                <div class="prose prose-sm max-w-none">
-                                    <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-                                        ${state.resumeAnalysis.analysis || '暂无分析报告'}
-                                    </div>
+                                <div class="bg-slate-50 rounded-xl p-4">
+                                    ${renderAnalysisReport(state.resumeAnalysis.analysis)}
                                 </div>
                             </div>
                         </div>
