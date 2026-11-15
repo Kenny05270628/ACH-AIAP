@@ -45,9 +45,10 @@ SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
 MODEL_NAME=Qwen/Qwen3.5-4B
 MAX_TOKENS=4096
 temperature=0.7
+DATABASE_URL=postgresql://achuser:achpassword@localhost:5432/achdb
 ```
 
-后端启动时会自动读取项目根目录的 `.env`；容器环境由 `docker-compose.yml` 的 `env_file` 注入，已存在的环境变量优先。
+后端启动时会自动读取项目根目录的 `.env`；容器环境由 `docker-compose.yml` 的 `env_file` 注入，已存在的环境变量优先（容器内 `DATABASE_URL` 指向 `postgres:5432`）。
 
 ### 3. 启动服务
 
@@ -99,7 +100,8 @@ uv run python tests/backend/test_ai_analysis.py
 ### 面试功能
 
 - `POST /api/v1/interview/start` - 开始AI模拟面试
-- `POST /api/v1/interview/answer` - 提交面试答案（评估逻辑待实现）
+- `POST /api/v1/interview/answer` - 提交面试答案并由AI评分（返回分数、评语与改进建议，结果落库）
+- `GET /api/v1/interview/{interview_id}` - 获取面试详情与所有已提交答案的评估结果
 
 ## 项目结构
 
@@ -108,7 +110,9 @@ uv run python tests/backend/test_ai_analysis.py
 ├── backend/            # 后端代码目录
 │   ├── app/            # FastAPI应用主目录
 │   │   ├── __init__.py
-│   │   └── main.py     # 后端API主文件（含SSE流式分析）
+│   │   ├── main.py     # 后端API主文件（含SSE流式分析）
+│   │   ├── db.py       # PostgreSQL 连接池与建表
+│   │   └── repository.py # 数据访问层（简历/分析/面试）
 │   ├── config/         # 后端配置目录
 │   │   ├── __init__.py
 │   │   └── config.py   # 读取 .env / 环境变量
@@ -147,13 +151,14 @@ uv run python tests/backend/test_ai_analysis.py
 1. 在项目根目录 `.env` 中配置 SiliconFlow API 密钥（参考 `.env.example`），密钥不会进入版本控制
 2. 仅支持PDF和DOCX格式的简历文件
 3. 上传的简历文件实际保存在 `temp/` 目录中
-4. 简历数据当前保存在内存字典中，服务重启后丢失，生产环境需接入 PostgreSQL
+4. 简历、分析结果与面试会话存储在 PostgreSQL（`resumes`、`resume_analyses`、`interviews`、`interview_answers` 四张表），表结构在后端启动时自动创建
 5. `uploads/`、`temp/` 和 `.env` 已加入 `.gitignore`
 6. 前端 API 地址默认按当前主机名推导（`8501` → `8080`），跨机部署时需调整 `frontend/index.html` 中的 `API_URL`
 
 ## 开发计划
 
-- [ ] 接入 PostgreSQL / Redis，实现数据持久化
+- [x] 接入 PostgreSQL，实现简历/分析/面试数据持久化
+- [ ] 接入 Redis（缓存或限流）
 - [ ] 完善用户认证系统
 - [ ] 实现面试答案评估与历史记录
 - [ ] 支持多语言界面

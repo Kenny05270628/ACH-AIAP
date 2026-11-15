@@ -151,13 +151,13 @@
                     <span class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-3 menu-category-title">快捷操作</span>
                     <ul class="space-y-1.5">
                         <li>
-                            <a href="#" class="flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 id-setting-btn nav-item">
+                            <a href="#" data-target="settings-panel" class="nav-item flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200">
                                 <i class="fas fa-sliders w-5 mr-3 text-slate-400 shrink-0"></i>
                                 <span class="nav-text">设置</span>
                             </a>
                         </li>
                         <li>
-                            <a href="#" class="flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200 id-help-btn nav-item">
+                            <a href="#" data-target="help-panel" class="nav-item flex items-center px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all duration-200">
                                 <i class="fas fa-circle-question w-5 mr-3 text-slate-400 shrink-0"></i>
                                 <span class="nav-text">帮助中心</span>
                             </a>
@@ -332,6 +332,174 @@
                         <div class="p-8 text-center text-slate-400 text-sm"><i class="fas fa-folder-open text-3xl mb-3 block text-slate-300"></i>暂无历史面试复盘数据</div>
                     </div>
                 </div>
+
+                <div id="settings-panel" class="content-panel hidden space-y-6">
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800 text-sm">偏好设置</h3>
+                            <p class="text-xs text-slate-400 mt-1">设置仅保存在当前浏览器，不会上传到服务器</p>
+                        </div>
+                        <div class="p-6 space-y-6">
+                            <div>
+                                <label for="setting-job-title" class="block text-sm font-medium text-slate-700 mb-2">默认目标岗位</label>
+                                <input id="setting-job-title" type="text" placeholder="例如：Python 后端工程师" class="w-full max-w-md px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                                <p class="text-xs text-slate-400 mt-2">保存后，进入「AI 模拟面试」时会自动填入该岗位</p>
+                            </div>
+                            <div class="flex items-start justify-between gap-4 max-w-md">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-700">自动保存回答草稿</p>
+                                    <p class="text-xs text-slate-400 mt-1">记录面试回答与评分，刷新页面后可恢复</p>
+                                </div>
+                                <input id="setting-save-answers" type="checkbox" class="mt-1 h-5 w-5 rounded border-slate-300 accent-indigo-600 cursor-pointer shrink-0">
+                            </div>
+                            <div class="flex items-start justify-between gap-4 max-w-md">
+                                <div>
+                                    <p class="text-sm font-medium text-slate-700">消息通知</p>
+                                    <p class="text-xs text-slate-400 mt-1">关闭后不再显示操作成功等提示，错误提示仍会保留</p>
+                                </div>
+                                <input id="setting-notifications" type="checkbox" class="mt-1 h-5 w-5 rounded border-slate-300 accent-indigo-600 cursor-pointer shrink-0">
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button onclick="saveSettings()" class="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors">保存设置</button>
+                                <span id="settings-saved-hint" class="text-xs text-emerald-600 hidden">已保存</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800 text-sm">AI 服务状态</h3>
+                        </div>
+                        <div class="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div class="space-y-1">
+                                <p class="text-sm text-slate-700">后端地址：<span id="setting-api-url" class="font-mono text-xs text-slate-500">-</span></p>
+                                <p class="text-xs">
+                                    <span id="settings-api-dot" class="inline-block w-2 h-2 rounded-full bg-slate-300 mr-1.5 align-middle"></span>
+                                    <span id="settings-api-status" class="text-slate-500 align-middle">检测中…</span>
+                                </p>
+                            </div>
+                            <button onclick="checkApiStatus()" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-200 transition-colors shrink-0">重新检测</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 bg-slate-50/50">
+                            <h3 class="font-bold text-slate-800 text-sm">数据管理</h3>
+                        </div>
+                        <div class="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <p class="text-sm text-slate-700">清空本地数据</p>
+                                <p class="text-xs text-slate-400 mt-1">删除浏览器缓存的简历预览、分析结果、面试记录与偏好设置；服务端数据不受影响</p>
+                            </div>
+                            <button onclick="clearAllLocalData()" class="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-sm font-medium hover:bg-rose-100 transition-colors shrink-0">清空数据</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+                        <h3 class="font-bold text-slate-800 text-sm mb-3">关于</h3>
+                        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <dt class="text-slate-400 text-xs mb-0.5">平台版本</dt>
+                                <dd class="text-slate-700">ACH 智能面试辅助平台 v2.0</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-400 text-xs mb-0.5">AI 能力</dt>
+                                <dd class="text-slate-700">简历分析 / 面试出题 / 答案评估（模型由服务端配置）</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+                <div id="help-panel" class="content-panel hidden space-y-6">
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+                        <h3 class="font-bold text-slate-800 text-sm mb-4">三步开始使用</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="p-4 bg-slate-50 rounded-xl">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="w-7 h-7 rounded-lg bg-primary-100 text-primary-600 text-xs font-bold flex items-center justify-center shrink-0">1</span>
+                                    <h4 class="text-sm font-semibold text-slate-800">上传简历</h4>
+                                </div>
+                                <p class="text-xs text-slate-500 leading-5 mb-3">支持 PDF / DOCX，上传后自动解析并展示简历文本。</p>
+                                <button onclick="switchPanel('resume-panel')" class="text-xs font-medium text-primary-600 hover:text-primary-700">去上传 →</button>
+                            </div>
+                            <div class="p-4 bg-slate-50 rounded-xl">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center shrink-0">2</span>
+                                    <h4 class="text-sm font-semibold text-slate-800">查看分析</h4>
+                                </div>
+                                <p class="text-xs text-slate-500 leading-5 mb-3">获取六维评分、雷达图与结构化的优化建议。</p>
+                                <button onclick="switchPanel('resume-panel')" class="text-xs font-medium text-indigo-600 hover:text-indigo-700">去分析 →</button>
+                            </div>
+                            <div class="p-4 bg-slate-50 rounded-xl">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="w-7 h-7 rounded-lg bg-secondary-100 text-secondary-600 text-xs font-bold flex items-center justify-center shrink-0">3</span>
+                                    <h4 class="text-sm font-semibold text-slate-800">模拟面试</h4>
+                                </div>
+                                <p class="text-xs text-slate-500 leading-5 mb-3">按岗位生成面试题，提交回答后获得 AI 评分与改进建议。</p>
+                                <button onclick="switchPanel('interview-panel')" class="text-xs font-medium text-secondary-600 hover:text-secondary-700">去面试 →</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6">
+                        <h3 class="font-bold text-slate-800 text-sm mb-2">常见问题</h3>
+                        <div class="divide-y divide-slate-100">
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    支持哪些简历格式？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">支持 PDF 与 DOCX，单个文件不超过 10MB。扫描版 PDF 若无法提取文字，请改用文字版文件。</p>
+                            </details>
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    分析一次需要多久？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">通常在 10–30 秒之间，页面会实时显示解析、分析、生成报告等进度。</p>
+                            </details>
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    六维评分是怎么算的？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">由 AI 根据简历中的实际证据，从专业技能、项目经验、教育背景、工作经验、沟通能力、学习能力六个维度分别打分，分数会随简历内容变化，并非固定模板。</p>
+                            </details>
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    我的数据保存在哪里？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">简历、分析结果与面试评分保存在服务端数据库；页面状态与偏好设置保存在当前浏览器。可在「设置 → 数据管理」中清空本地缓存。</p>
+                            </details>
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    分析失败或提示格式异常怎么办？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">多为模型偶发返回异常，直接重试即可；若持续失败，请确认「设置」中的 AI 服务状态正常，并检查后台日志。</p>
+                            </details>
+                            <details class="py-4 group">
+                                <summary class="flex items-center justify-between cursor-pointer list-none text-sm font-medium text-slate-700">
+                                    同一道面试题可以重复提交吗？
+                                    <i class="fas fa-chevron-down text-xs text-slate-400 transition-transform group-open:rotate-180"></i>
+                                </summary>
+                                <p class="mt-3 text-sm text-slate-500 leading-6">可以。每次提交都会独立评分并新增一条记录，便于对比不同回答的得分。</p>
+                            </details>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h3 class="font-bold text-slate-800 text-sm">还有其他问题？</h3>
+                            <p class="text-xs text-slate-400 mt-1">可直接从下面的入口继续操作，或联系项目管理员反馈。</p>
+                        </div>
+                        <div class="flex gap-3 shrink-0">
+                            <button onclick="switchPanel('resume-panel')" class="px-4 py-2 bg-primary-50 text-primary-600 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors">上传简历</button>
+                            <button onclick="switchPanel('interview-panel')" class="px-4 py-2 bg-secondary-50 text-secondary-600 rounded-xl text-sm font-medium hover:bg-secondary-100 transition-colors">开始面试</button>
+                        </div>
+                    </div>
+                </div>
                 
             </main>
             
@@ -467,7 +635,8 @@
                     resumeAnalysis: state.resumeAnalysis,
                     interviewId: state.interviewId,
                     jobTitle: state.jobTitle,
-                    interviewQuestions: state.interviewQuestions
+                    interviewQuestions: state.interviewQuestions,
+                    answers: appSettings.saveAnswers ? state.answers : {}
                 }));
             } catch (e) {
                 console.error('Failed to save state:', e);
@@ -484,6 +653,82 @@
             state.interviewQuestions = [];
             state.answers = {};
             localStorage.removeItem('ach_platform_state');
+        }
+
+        const SETTINGS_KEY = 'ach_platform_settings';
+        const defaultSettings = { defaultJobTitle: '', saveAnswers: true, notifications: true };
+        let appSettings = { ...defaultSettings };
+
+        function loadSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
+                appSettings = { ...defaultSettings, ...saved };
+            } catch (e) {
+                appSettings = { ...defaultSettings };
+            }
+        }
+
+        function syncSettingsForm() {
+            const jobTitle = document.getElementById('setting-job-title');
+            const saveAnswers = document.getElementById('setting-save-answers');
+            const notifications = document.getElementById('setting-notifications');
+            if (jobTitle) jobTitle.value = appSettings.defaultJobTitle || '';
+            if (saveAnswers) saveAnswers.checked = appSettings.saveAnswers;
+            if (notifications) notifications.checked = appSettings.notifications;
+
+            const urlEl = document.getElementById('setting-api-url');
+            if (urlEl) urlEl.textContent = API_URL;
+        }
+
+        function saveSettings() {
+            const jobTitle = document.getElementById('setting-job-title');
+            const saveAnswers = document.getElementById('setting-save-answers');
+            const notifications = document.getElementById('setting-notifications');
+
+            appSettings.defaultJobTitle = jobTitle ? jobTitle.value.trim() : '';
+            appSettings.saveAnswers = saveAnswers ? saveAnswers.checked : true;
+            appSettings.notifications = notifications ? notifications.checked : true;
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(appSettings));
+
+            const hint = document.getElementById('settings-saved-hint');
+            if (hint) {
+                hint.classList.remove('hidden');
+                setTimeout(() => hint.classList.add('hidden'), 2000);
+            }
+            showNotification('设置已保存', 'success');
+        }
+
+        async function checkApiStatus() {
+            const dot = document.getElementById('settings-api-dot');
+            const status = document.getElementById('settings-api-status');
+            if (!dot || !status) return;
+
+            dot.className = 'inline-block w-2 h-2 rounded-full bg-amber-400 mr-1.5 align-middle';
+            status.className = 'text-amber-600 align-middle';
+            status.textContent = '检测中…';
+
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 5000);
+            try {
+                const response = await fetch(`${API_URL}/`, { signal: controller.signal });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                dot.className = 'inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1.5 align-middle';
+                status.className = 'text-emerald-600 align-middle';
+                status.textContent = '服务正常';
+            } catch (e) {
+                dot.className = 'inline-block w-2 h-2 rounded-full bg-rose-500 mr-1.5 align-middle';
+                status.className = 'text-rose-600 align-middle';
+                status.textContent = '无法连接后端，请确认服务已启动';
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        function clearAllLocalData() {
+            if (!confirm('确定要清空本地缓存吗？该操作不会删除服务端数据。')) return;
+            clearState();
+            localStorage.removeItem(SETTINGS_KEY);
+            location.reload();
         }
 
         async function apiCall(endpoint, options = {}) {
@@ -509,6 +754,8 @@
         }
 
         function showNotification(message, type = 'info') {
+            if (!appSettings.notifications && type !== 'error') return;
+
             const colors = {
                 success: 'bg-emerald-500',
                 error: 'bg-rose-500',
@@ -1083,13 +1330,15 @@
                                         class="w-full p-4 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                                         rows="4"
                                         placeholder="请输入您的回答..."
-                                    >${state.answers[idx] || ''}</textarea>
+                                    >${getSavedAnswer(idx)}</textarea>
                                     <button 
+                                        id="submit-answer-${idx}"
                                         onclick="submitAnswer(${idx})" 
-                                        class="mt-3 px-6 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                                        class="mt-3 px-6 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         提交回答
                                     </button>
+                                    <div id="evaluation-${idx}">${renderEvaluationHTML(state.answers[idx])}</div>
                                 </div>
                             </div>
                         `).join('')}
@@ -1111,7 +1360,48 @@
             }
         }
 
-        function submitAnswer(idx) {
+        function getSavedAnswer(idx) {
+            const saved = state.answers[idx];
+            if (!saved) return '';
+            return typeof saved === 'string' ? saved : (saved.answer || '');
+        }
+
+        // 渲染AI评估结果；兼容 localStorage 中旧版仅存字符串的答案
+        function renderEvaluationHTML(data) {
+            if (!data || typeof data !== 'object' || data.score === undefined) return '';
+
+            const score = Number(data.score) || 0;
+            const palette = score >= 80
+                ? { box: 'border-emerald-200 bg-emerald-50', label: 'text-emerald-700', score: 'text-emerald-600' }
+                : score >= 60
+                    ? { box: 'border-amber-200 bg-amber-50', label: 'text-amber-700', score: 'text-amber-600' }
+                    : { box: 'border-rose-200 bg-rose-50', label: 'text-rose-700', score: 'text-rose-600' };
+
+            const suggestions = (data.suggestions || []).map(item => `
+                <li class="flex gap-2">
+                    <span class="mt-2 w-1.5 h-1.5 rounded-full bg-slate-300 shrink-0"></span>
+                    <span class="flex-1">${escapeHtml(item)}</span>
+                </li>
+            `).join('');
+
+            return `
+                <div class="mt-4 border ${palette.box} rounded-xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-semibold ${palette.label}">AI 评分</span>
+                        <span class="text-2xl font-bold ${palette.score}">${score}<span class="text-xs font-medium ml-0.5">/100</span></span>
+                    </div>
+                    <p class="text-sm text-slate-700 leading-6">${escapeHtml(data.feedback || '')}</p>
+                    ${suggestions ? `
+                        <div class="mt-3">
+                            <p class="text-xs font-semibold text-slate-600 mb-1">改进建议</p>
+                            <ul class="space-y-1 text-sm text-slate-600">${suggestions}</ul>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        async function submitAnswer(idx) {
             const textarea = document.getElementById(`answer-${idx}`);
             const answer = textarea.value.trim();
 
@@ -1120,9 +1410,51 @@
                 return;
             }
 
-            state.answers[idx] = answer;
-            saveState();
-            showNotification(`回答 ${idx + 1} 已提交！`, 'success');
+            if (!state.interviewId) {
+                showNotification('面试会话已失效，请重新开始面试', 'warning');
+                return;
+            }
+
+            const button = document.getElementById(`submit-answer-${idx}`);
+            const evaluationBox = document.getElementById(`evaluation-${idx}`);
+
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>AI评估中...';
+            if (evaluationBox) evaluationBox.innerHTML = '';
+
+            try {
+                const result = await apiCall('/api/v1/interview/answer', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        interview_id: state.interviewId,
+                        question: state.interviewQuestions[idx].question,
+                        question_index: idx,
+                        answer: answer
+                    })
+                });
+
+                if (!result.success) {
+                    throw new Error(result.message || '评估失败');
+                }
+
+                state.answers[idx] = {
+                    answer: answer,
+                    score: result.score,
+                    feedback: result.feedback,
+                    suggestions: result.suggestions || []
+                };
+                saveState();
+
+                if (evaluationBox) {
+                    evaluationBox.innerHTML = renderEvaluationHTML(state.answers[idx]);
+                }
+                showNotification(`第 ${idx + 1} 题评估完成：${result.score} 分`, 'success');
+            } catch (error) {
+                showNotification(`评估失败: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = '提交回答';
+            }
         }
 
         function handleRestartInterview() {
@@ -1212,6 +1544,13 @@
                 return;
             }
 
+            const evaluatedAnswers = Object.values(state.answers).filter(
+                item => item && typeof item === 'object' && item.score !== undefined
+            );
+            const averageScore = evaluatedAnswers.length
+                ? Math.round(evaluatedAnswers.reduce((sum, item) => sum + Number(item.score), 0) / evaluatedAnswers.length)
+                : null;
+
             panel.innerHTML = `
                 <div class="space-y-6">
                     <div class="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
@@ -1253,15 +1592,22 @@
                                         <p class="text-sm font-medium text-slate-800">${state.jobTitle}</p>
                                         <p class="text-xs text-slate-500 mt-1">共 ${state.interviewQuestions.length} 个问题</p>
                                     </div>
-                                    <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">已完成</span>
+                                    <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-xs font-medium">${averageScore !== null ? `平均 ${averageScore} 分` : '已完成'}</span>
                                 </div>
                                 <div class="space-y-2">
-                                    ${state.interviewQuestions.slice(0, 3).map((q, idx) => `
+                                    ${state.interviewQuestions.slice(0, 3).map((q, idx) => {
+                                        const evaluation = state.answers[idx];
+                                        const score = evaluation && typeof evaluation === 'object' ? evaluation.score : null;
+                                        return `
                                         <div class="p-3 bg-slate-50 rounded-lg">
                                             <p class="text-sm text-slate-700">${idx + 1}. ${q.question}</p>
-                                            <p class="text-xs text-slate-500 mt-1">类型: ${q.type}</p>
+                                            <div class="flex items-center justify-between mt-1">
+                                                <p class="text-xs text-slate-500">类型: ${q.type}</p>
+                                                ${score !== null && score !== undefined ? `<span class="text-xs font-semibold text-primary-600">${score} 分</span>` : ''}
+                                            </div>
                                         </div>
-                                    `).join('')}
+                                        `;
+                                    }).join('')}
                                 </div>
                             </div>
                         </div>
@@ -1278,11 +1624,19 @@
                 updateResumePanel();
             } else if (targetPanelId === 'interview-panel') {
                 updateInterviewPanel();
+                const jobInput = document.getElementById('job-title-input');
+                if (jobInput && !jobInput.value.trim() && appSettings.defaultJobTitle) {
+                    jobInput.value = appSettings.defaultJobTitle;
+                }
             } else if (targetPanelId === 'history-panel') {
                 updateHistoryPanel();
+            } else if (targetPanelId === 'settings-panel') {
+                syncSettingsForm();
+                checkApiStatus();
             }
         };
 
+        loadSettings();
         loadState();
 
         document.addEventListener('DOMContentLoaded', () => {
