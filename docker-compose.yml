@@ -6,14 +6,11 @@ services:
     container_name: ach-backend
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql://achuser:achpassword@postgres:5432/achdb
       - REDIS_URL=redis://redis:6379/0
-      - SILICONFLOW_API_KEY=sk-xzmxkddezweuclijrxgoeakjpukscmytpxywjfgdhdgmrqiy
-      - SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1
-      - MODEL_NAME=Qwen/Qwen3.5-4B
-      - MAX_TOKENS=4096
-      - temperature=0.7
     depends_on:
       postgres:
         condition: service_healthy

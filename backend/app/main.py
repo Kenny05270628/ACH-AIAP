@@ -25,6 +25,9 @@ client = OpenAI(
     base_url=SILICONFLOW_BASE_URL,
 )
 
+# API 密钥是否已配置（来自 .env 或环境变量）
+API_KEY_CONFIGURED = bool(SILICONFLOW_API_KEY) and SILICONFLOW_API_KEY != "your-api-key-here"
+
 # Pydantic模型定义
 class InterviewRequest(BaseModel):
     job_title: str
@@ -124,13 +127,13 @@ def parse_docx(file_path: str) -> str:
 
 def analyze_resume_with_ai(resume_text: str) -> dict:
     """使用硅基流动API分析简历内容"""
-    # 检查API密钥是否为默认值
-    if SILICONFLOW_API_KEY == "your-api-key-here":
+    # 检查API密钥是否已配置
+    if not API_KEY_CONFIGURED:
         return {
             "success": False,
             "analysis": "",
             "scores": {},
-            "message": "AI分析失败：请先在backend/config/config.py中配置有效的SILICONFLOW_API_KEY"
+            "message": "AI分析失败：请先在项目根目录 .env 中配置有效的 SILICONFLOW_API_KEY"
         }
     
     try:
@@ -293,7 +296,7 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
                 "success": False,
                 "analysis": "",
                 "scores": {},
-                "message": "AI分析失败：API密钥无效，请检查backend/config/config.py中的SILICONFLOW_API_KEY配置"
+                "message": "AI分析失败：API密钥无效，请检查项目根目录 .env 中的 SILICONFLOW_API_KEY 配置"
             }
         elif "403" in error_msg:
             return {
@@ -319,12 +322,12 @@ def analyze_resume_with_ai(resume_text: str) -> dict:
 
 def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
     """使用硅基流动API生成面试问题"""
-    # 检查API密钥是否为默认值
-    if SILICONFLOW_API_KEY == "your-api-key-here":
+    # 检查API密钥是否已配置
+    if not API_KEY_CONFIGURED:
         return {
             "success": False,
             "questions": [],
-            "message": "面试问题生成失败：请先在backend/config/config.py中配置有效的SILICONFLOW_API_KEY"
+            "message": "面试问题生成失败：请先在项目根目录 .env 中配置有效的 SILICONFLOW_API_KEY"
         }
     
     try:
@@ -449,7 +452,7 @@ def generate_interview_questions(job_title: str, resume_text: str = "") -> dict:
             return {
                 "success": False,
                 "questions": [],
-                "message": "面试问题生成失败：API密钥无效，请检查backend/config/config.py中的SILICONFLOW_API_KEY配置"
+                "message": "面试问题生成失败：API密钥无效，请检查项目根目录 .env 中的 SILICONFLOW_API_KEY 配置"
             }
         elif "403" in error_msg:
             return {

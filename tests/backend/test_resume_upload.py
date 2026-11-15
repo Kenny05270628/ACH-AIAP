@@ -9,6 +9,15 @@ API_URL = "http://localhost:8080"
 # 注意：这里我们使用一个已经存在的PDF文件进行测试
 # 如果没有测试文件，可以创建一个简单的文本文件并改名为test.pdf
 
+
+def parse_final_sse_event(response):
+    """读取SSE流并返回最后一条事件的数据（分析接口为流式响应）"""
+    payload = None
+    for line in response.iter_lines(decode_unicode=True):
+        if line and line.startswith("data: "):
+            payload = json.loads(line[len("data: "):])
+    return payload
+
 def test_resume_upload_and_analyze():
     """测试简历上传和分析功能"""
     print("测试简历上传和分析功能...")
@@ -34,25 +43,32 @@ def test_resume_upload_and_analyze():
         if response.status_code == 200:
             resume_id = response.json()["resume_id"]
             
-            # 2. 分析简历
+            # 2. 分析简历（接口为SSE流式响应，需用GET并读取事件流）
             print(f"\n2. 分析简历 (ID: {resume_id})...")
-            response = requests.post(f"{API_URL}/api/v1/resume/analyze?resume_id={resume_id}")
+            response = requests.get(
+                f"{API_URL}/api/v1/resume/analyze",
+                params={"resume_id": resume_id},
+                stream=True,
+                timeout=180,
+            )
             
             print(f"   分析状态码: {response.status_code}")
-            print(f"   分析响应: {response.json()}")
             
-            # 检查是否有AI分析内容
             if response.status_code == 200:
-                result = response.json()
-                if "analysis" in result and result["analysis"]:
+                result = parse_final_sse_event(response)
+                print(f"   分析响应: {result}")
+                data = (result or {}).get("data", {})
+                
+                # 检查是否有AI分析内容
+                if data.get("analysis"):
                     print("\n3. AI分析内容:")
-                    print(result["analysis"])
+                    print(data["analysis"])
                     return True
                 else:
-                    print("\n3. 错误：AI分析内容为空！")
+                    print(f"\n3. 错误：AI分析内容为空！{data.get('message', '')}")
                     return False
             else:
-                print("\n3. 错误：分析API调用失败！")
+                print(f"\n3. 错误：分析API调用失败！{response.json()}")
                 return False
         else:
             print("\n3. 错误：上传API调用失败！")

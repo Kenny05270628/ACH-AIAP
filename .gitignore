@@ -45,7 +45,6 @@ dist/
 build/
 *.egg-info/
 
-# API密钥文件
-config.py
+# 用户上传文件
 uploads/
 temp/

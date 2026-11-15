@@ -54,7 +54,7 @@ def test_resume_analyze():
     print("\n测试简历分析功能...")
     
     # 由于API需要有效的简历ID，这里我们测试错误处理
-    response = requests.post(f"{API_URL}/api/v1/resume/analyze?resume_id=invalid-id")
+    response = requests.get(f"{API_URL}/api/v1/resume/analyze", params={"resume_id": "invalid-id"})
     
     if response.status_code == 404:
         print("✓ 简历分析错误处理测试通过")

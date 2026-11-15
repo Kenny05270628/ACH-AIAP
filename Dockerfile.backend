@@ -2,16 +2,24 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# PyPI 镜像（国内网络可默认使用清华源，可按需覆盖）
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_INDEX_URL=${PIP_INDEX_URL}
+
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
 COPY backend/ ./backend/
 
-RUN uv sync --frozen --no-dev
+# uv.lock 记录的是 files.pythonhosted.org 直链，部分网络不可达；
+# 因此用 uv 导出锁定版本，再由 pip 从镜像源安装
+RUN uv export --frozen --no-dev --no-hashes -o /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-CMD ["uv", "run", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
