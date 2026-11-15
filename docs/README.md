@@ -46,6 +46,8 @@ MODEL_NAME=Qwen/Qwen3.5-4B
 MAX_TOKENS=4096
 temperature=0.7
 DATABASE_URL=postgresql://achuser:achpassword@localhost:5432/achdb
+# temp 目录文件保留时长（小时），默认 24
+TEMP_FILE_TTL_HOURS=24
 ```
 
 后端启动时会自动读取项目根目录的 `.env`；容器环境由 `docker-compose.yml` 的 `env_file` 注入，已存在的环境变量优先（容器内 `DATABASE_URL` 指向 `postgres:5432`）。

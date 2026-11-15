@@ -2,13 +2,15 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Query
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 import uvicorn
 import uuid
 import os
 import sys
 import json
 import re
+import time
+import asyncio
 from pathlib import Path
 import pdfplumber
 from docx import Document
@@ -47,8 +49,19 @@ class AnswerRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
-    close_db()
+
+    removed = cleanup_temp_files()
+    if removed:
+        print(f"[INFO] 启动时清理过期临时文件 {removed} 个")
+
+    cleanup_task = asyncio.create_task(_temp_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cleanup_task
+        close_db()
 
 
 app = FastAPI(
@@ -70,6 +83,38 @@ app.add_middleware(
 # 确保临时目录存在
 TEMP_DIR = Path("./temp")
 TEMP_DIR.mkdir(exist_ok=True)
+
+# 临时文件保留时长（小时）与清理间隔
+TEMP_FILE_TTL_HOURS = float(os.getenv("TEMP_FILE_TTL_HOURS", "24"))
+TEMP_CLEANUP_INTERVAL_SECONDS = 3600
+
+
+def cleanup_temp_files(ttl_hours: float = TEMP_FILE_TTL_HOURS) -> int:
+    """删除 temp 目录下超过保留时长的文件，返回删除数量"""
+    if not TEMP_DIR.exists():
+        return 0
+
+    deadline = time.time() - ttl_hours * 3600
+    removed = 0
+    for path in TEMP_DIR.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            if path.stat().st_mtime < deadline:
+                path.unlink()
+                removed += 1
+        except OSError as exc:
+            print(f"[WARN] 清理临时文件失败 {path}: {exc}")
+    return removed
+
+
+async def _temp_cleanup_loop():
+    """后台定时清理过期临时文件"""
+    while True:
+        await asyncio.sleep(TEMP_CLEANUP_INTERVAL_SECONDS)
+        removed = cleanup_temp_files()
+        if removed:
+            print(f"[INFO] 定时清理临时文件 {removed} 个")
 
 @app.get("/")
 async def root():
